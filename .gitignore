@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+.env.local
+.env.*.local
+
+# Testing
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/
+test-results/
+
+# Build
+.next/
+dist/
+build/
+*.egg-info/
+*.whl
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Uploads
+uploads/
+tmp/
+
+# Docker
+pgdata/
+
+# Secrets
+*.pem
+*.key
+service-account.json
+credentials.json
+
+# Vector DB
+.qdrant/
+
+# Misc
+*.sqlite3
+*.db
