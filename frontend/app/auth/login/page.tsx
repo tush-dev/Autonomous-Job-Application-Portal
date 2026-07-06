@@ -141,7 +141,18 @@ export default function LoginPage() {
 
         <button
           type="button"
-          onClick={() => toast.info("Google OAuth coming soon")}
+          onClick={() => {
+            const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+            const redirectUri = window.location.origin + "/auth/google/callback";
+            const googleUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=email%20profile`;
+            console.log("[Google OAuth Login]", {
+              clientIdPrefix: clientId?.substring(0, 20) + "...",
+              redirectUri,
+              googleUrl,
+              hasClientId: !!clientId,
+            });
+            window.location.href = googleUrl;
+          }}
           className="w-full rounded-lg border bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
         >
           Google

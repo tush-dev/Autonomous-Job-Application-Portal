@@ -13,6 +13,16 @@ router = APIRouter()
 logger = structlog.get_logger()
 
 
+@router.get("")
+async def list_cover_letters(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = CoverLetterService(db)
+    cover_letters = await service.list_cover_letters(current_user.id)
+    return cover_letters
+
+
 @router.post("/generate", response_model=CoverLetterResponse, status_code=status.HTTP_201_CREATED)
 async def generate_cover_letter(
     request: CoverLetterGenerateRequest,
@@ -38,6 +48,17 @@ async def get_cover_letter(
     service = CoverLetterService(db)
     cover_letter = await service.get_cover_letter(current_user.id, cover_letter_id)
     return cover_letter
+
+
+@router.delete("/{cover_letter_id}")
+async def delete_cover_letter(
+    cover_letter_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = CoverLetterService(db)
+    await service.delete_cover_letter(current_user.id, cover_letter_id)
+    return {"success": True, "message": "Cover letter deleted"}
 
 
 @router.patch("/{cover_letter_id}", response_model=CoverLetterResponse)

@@ -49,6 +49,18 @@ class AuthService:
         self.db.add(user_settings)
         await self.db.flush()
 
+        from app.models.user import EmailVerificationToken
+        import secrets
+        token_bytes = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(token_bytes.encode()).hexdigest()
+        verify_token = EmailVerificationToken(
+            user_id=user.id,
+            token_hash=token_hash,
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+        )
+        self.db.add(verify_token)
+        await self.db.flush()
+
         access_token = create_access_token(subject=str(user.id), role=user.role.value)
         refresh_token = create_refresh_token(subject=str(user.id))
 
@@ -96,26 +108,48 @@ class AuthService:
         )
 
     async def google_login(self, code: str, redirect_uri: Optional[str] = None) -> AuthResponse:
+        final_redirect_uri = redirect_uri or settings.GOOGLE_REDIRECT_URI
+        token_url = "https://oauth2.googleapis.com/token"
+
+        logger.info("google_oauth_token_exchange_start",
+                    token_url=token_url,
+                    client_id_prefix=settings.GOOGLE_CLIENT_ID[:20] + "...",
+                    redirect_uri=final_redirect_uri,
+                    has_client_secret=bool(settings.GOOGLE_CLIENT_SECRET),
+                    code_prefix=code[:10] + "...")
+
         async with AsyncClient() as client:
             token_response = await client.post(
-                "https://oauth2.googleapis.com/token",
+                token_url,
                 data={
                     "code": code,
                     "client_id": settings.GOOGLE_CLIENT_ID,
                     "client_secret": settings.GOOGLE_CLIENT_SECRET,
-                    "redirect_uri": redirect_uri or settings.GOOGLE_REDIRECT_URI,
+                    "redirect_uri": final_redirect_uri,
                     "grant_type": "authorization_code",
                 },
             )
 
+            logger.info("google_oauth_token_exchange_response",
+                        status_code=token_response.status_code,
+                        response_body=token_response.text[:500])
+
             if token_response.status_code != 200:
-                raise UnauthorizedException("Invalid Google OAuth code")
+                raise UnauthorizedException(
+                    f"Google OAuth failed: {token_response.text[:200]}"
+                )
 
             tokens = token_response.json()
+            logger.info("google_oauth_userinfo_request",
+                        has_access_token=bool(tokens.get("access_token")))
+
             user_info_response = await client.get(
                 "https://www.googleapis.com/oauth2/v2/userinfo",
                 headers={"Authorization": f"Bearer {tokens['access_token']}"},
             )
+
+            logger.info("google_oauth_userinfo_response",
+                        status_code=user_info_response.status_code)
 
             if user_info_response.status_code != 200:
                 raise UnauthorizedException("Failed to get Google user info")
@@ -329,6 +363,48 @@ class AuthService:
         user.mfa_enabled = False
         user.mfa_secret = None
         await self.db.flush()
+
+    async def get_settings(self, user: User) -> dict:
+        result = await self.db.execute(
+            select(UserSettings).where(UserSettings.user_id == user.id)
+        )
+        settings = result.scalar_one_or_none()
+        if not settings:
+            settings = UserSettings(user_id=user.id)
+            self.db.add(settings)
+            await self.db.flush()
+        return {
+            "theme": settings.theme,
+            "language": settings.language,
+            "timezone": settings.timezone,
+            "approval_gate": settings.approval_gate,
+            "auto_submit": settings.auto_submit,
+            "daily_application_limit": settings.daily_application_limit,
+        }
+
+    async def update_settings(self, user: User, updates: dict) -> dict:
+        result = await self.db.execute(
+            select(UserSettings).where(UserSettings.user_id == user.id)
+        )
+        settings = result.scalar_one_or_none()
+        if not settings:
+            settings = UserSettings(user_id=user.id)
+            self.db.add(settings)
+
+        allowed_fields = {"theme", "language", "timezone", "approval_gate", "auto_submit", "daily_application_limit"}
+        for key, value in updates.items():
+            if key in allowed_fields and hasattr(settings, key):
+                setattr(settings, key, value)
+
+        await self.db.flush()
+        return {
+            "theme": settings.theme,
+            "language": settings.language,
+            "timezone": settings.timezone,
+            "approval_gate": settings.approval_gate,
+            "auto_submit": settings.auto_submit,
+            "daily_application_limit": settings.daily_application_limit,
+        }
 
     async def update_profile(self, user: User, request: UpdateProfileRequest) -> User:
         if request.full_name is not None:

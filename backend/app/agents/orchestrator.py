@@ -27,12 +27,10 @@ class OrchestratorAgent(BaseAgent):
             return {"response": "I can help with career-related tasks."}
 
     async def _route_to_agent(self, agent_name: str, context: dict) -> dict:
-        from app.agents.resume_agent import ResumeAgent
-        from app.agents.job_search_agent import JobSearchAgent
-        from app.agents.resume_optimizer_agent import ResumeOptimizerAgent
-        from app.agents.cover_letter_agent import CoverLetterAgent
-        from app.agents.application_agent import ApplicationAgent
-        from app.agents.career_advisor_agent import CareerAdvisorAgent
+        from app.agents.resume_agent import (
+            ResumeAgent, JobSearchAgent, ResumeOptimizerAgent,
+            CoverLetterAgent, ApplicationAgent, CareerAdvisorAgent,
+        )
 
         agents = {
             "resume_agent": ResumeAgent,

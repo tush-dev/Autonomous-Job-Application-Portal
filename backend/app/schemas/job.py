@@ -13,6 +13,8 @@ class JobSearchRequest(BaseModel):
     page_size: int = Field(default=20, ge=1, le=100)
     sources: Optional[list[str]] = None
     exclude_applied: bool = False
+    min_match_score: Optional[float] = Field(default=None, ge=0, le=100)
+    sort_by: Optional[str] = Field(default=None, pattern="^(match|recent)?$")
 
 
 class CompanyResponse(BaseModel):
@@ -24,6 +26,16 @@ class CompanyResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class JobMatchBrief(BaseModel):
+    match_score: float
+    skills_matched: list[str] = []
+    missing_skills: list[str] = []
+    ats_compatibility: Optional[float] = None
+    interview_probability: Optional[float] = None
+    reasoning: Optional[str] = None
+    is_recommended: bool = False
 
 
 class JobResponse(BaseModel):
@@ -41,12 +53,9 @@ class JobResponse(BaseModel):
     skills_required: list[str] = []
     application_url: Optional[str] = None
     posted_at: datetime
-    match_score: Optional[float] = None
-    match_reasons: list[str] = []
-    missing_skills: list[str] = []
-    estimated_interview_chance: Optional[str] = None
     is_saved: bool = False
     has_applied: bool = False
+    match: Optional[JobMatchBrief] = None
 
     class Config:
         from_attributes = True

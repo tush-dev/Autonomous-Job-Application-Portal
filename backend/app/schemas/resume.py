@@ -20,15 +20,21 @@ class ResumeResponse(BaseModel):
     file_name: str
     file_size: int
     file_type: str
+    raw_text: Optional[str] = None
     parsed_data: Optional[dict] = None
     parsing_confidence: Optional[float] = None
     parsing_status: str
+    parsing_error: Optional[str] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class ResumeUpdateRequest(BaseModel):
+    parsed_data: Optional[dict] = None
 
 
 class SkillItem(BaseModel):
@@ -63,3 +69,15 @@ class ResumeTailorResponse(BaseModel):
     version: int
     content: dict
     created_at: datetime
+
+
+class ParsedResumeData(BaseModel):
+    name: str = ""
+    email: str = ""
+    phone: str = ""
+    skills: list[str] = []
+    experience: list[dict] = []
+    projects: list[dict] = []
+    education: list[dict] = []
+    certifications: list[str] = []
+    summary: str = ""

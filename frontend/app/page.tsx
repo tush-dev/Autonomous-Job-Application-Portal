@@ -42,13 +42,13 @@ export default function LandingPage() {
           </div>
           <nav className="flex items-center gap-4">
             <Link
-              href="/login"
+              href="/auth/login"
               className="text-sm font-medium text-muted-foreground hover:text-foreground"
             >
               Sign in
             </Link>
             <Link
-              href="/signup"
+              href="/auth/signup"
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               Get Started
@@ -76,14 +76,14 @@ export default function LandingPage() {
             </p>
             <div className="mt-10 flex items-center justify-center gap-4">
               <Link
-                href="/signup"
+                href="/auth/signup"
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-3 text-lg font-medium text-primary-foreground hover:bg-primary/90"
               >
                 Start Free
                 <ArrowRight className="h-5 w-5" />
               </Link>
               <Link
-                href="/login"
+                href="/auth/login"
                 className="inline-flex items-center gap-2 rounded-lg border px-8 py-3 text-lg font-medium hover:bg-accent"
               >
                 Sign In

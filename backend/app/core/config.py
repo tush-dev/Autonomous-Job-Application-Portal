@@ -1,3 +1,5 @@
+import base64
+
 from pydantic_settings import BaseSettings
 from pydantic import Field, PostgresDsn, RedisDsn, field_validator
 from typing import List, Optional
@@ -30,8 +32,15 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
-    AI_DEFAULT_MODEL: str = "gpt-4o-mini"
-    AI_FALLBACK_MODEL: str = "gpt-4o-mini"
+    GEMINI_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
+    JSEARCH_API_KEY: str = ""
+    RESEND_API_KEY: str = ""
+    AI_PRIMARY_PROVIDER: str = "gemini"
+    AI_DEFAULT_MODEL: str = "gemini-2.0-flash"
+    AI_FALLBACK_MODEL: str = "gemini-2.0-flash-lite"
+    AI_CACHE_ENABLED: bool = True
+    AI_CACHE_TTL: int = 300
 
     S3_ENDPOINT: str = "http://minio:9000"
     S3_ACCESS_KEY: str = "minioadmin"
@@ -78,6 +87,20 @@ class Settings(BaseSettings):
     def parse_trusted_hosts(cls, v):
         if isinstance(v, str):
             return [host.strip() for host in v.split(",")]
+        return v
+
+    @field_validator("JWT_PRIVATE_KEY", mode="before")
+    @classmethod
+    def decode_private_key(cls, v):
+        if v and v.startswith("LS"):
+            return base64.b64decode(v).decode("utf-8")
+        return v
+
+    @field_validator("JWT_PUBLIC_KEY", mode="before")
+    @classmethod
+    def decode_public_key(cls, v):
+        if v and v.startswith("LS"):
+            return base64.b64decode(v).decode("utf-8")
         return v
 
     class Config:

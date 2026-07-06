@@ -4,15 +4,18 @@ from datetime import datetime, timezone
 import structlog
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc, and_
+from sqlalchemy import select, func, desc, and_, case, Integer
+from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import NotFoundException, ValidationException
+from app.core.notifier import create_notification
+from app.core.ai_logger import log_activity
 from app.models.user import User
 from app.models.application import (
     JobApplication, ApplicationStatus, ApplicationTimeline,
     CoverLetter, CoverLetterTone,
 )
-from app.models.job import Job
+from app.models.job import Job, Company
 from app.schemas.application import (
     ApplicationResponse, ApplicationStatsResponse, TimelineEvent,
     CoverLetterResponse,
@@ -28,7 +31,11 @@ class ApplicationService:
     async def list_applications(
         self, user_id: uuid.UUID, status_filter: Optional[str] = None
     ) -> list[ApplicationResponse]:
-        stmt = select(JobApplication).where(JobApplication.user_id == user_id)
+        stmt = (
+            select(JobApplication)
+            .options(selectinload(JobApplication.job).selectinload(Job.company))
+            .where(JobApplication.user_id == user_id)
+        )
 
         if status_filter:
             stmt = stmt.where(JobApplication.status == status_filter)
@@ -42,7 +49,9 @@ class ApplicationService:
         self, user_id: uuid.UUID, application_id: str
     ) -> ApplicationResponse:
         result = await self.db.execute(
-            select(JobApplication).where(
+            select(JobApplication)
+            .options(selectinload(JobApplication.job).selectinload(Job.company))
+            .where(
                 JobApplication.id == application_id,
                 JobApplication.user_id == user_id,
             )
@@ -60,7 +69,9 @@ class ApplicationService:
         approval_required: bool = True,
         notes: Optional[str] = None,
     ) -> ApplicationResponse:
-        job_result = await self.db.execute(select(Job).where(Job.id == job_id))
+        job_result = await self.db.execute(
+            select(Job).options(selectinload(Job.company)).where(Job.id == job_id)
+        )
         job = job_result.scalar_one_or_none()
         if not job:
             raise NotFoundException("Job not found")
@@ -73,6 +84,7 @@ class ApplicationService:
             approval_required=approval_required,
             notes=notes,
         )
+        application.job = job
         self.db.add(application)
 
         timeline = ApplicationTimeline(
@@ -82,6 +94,17 @@ class ApplicationService:
         )
         self.db.add(timeline)
         await self.db.flush()
+
+        job_title = job.title if job else "Unknown Position"
+        await create_notification(
+            self.db, user_id, "application_created",
+            f"Application drafted for {job_title}",
+        )
+        await log_activity(
+            self.db, user_id, "create_application",
+            resource_type="application", resource_id=str(application.id),
+            details={"job_id": job_id, "job_title": job_title},
+        )
 
         return await self._to_response(application)
 
@@ -94,7 +117,9 @@ class ApplicationService:
         additional_answers: Optional[dict] = None,
     ) -> ApplicationResponse:
         result = await self.db.execute(
-            select(JobApplication).where(
+            select(JobApplication)
+            .options(selectinload(JobApplication.job).selectinload(Job.company))
+            .where(
                 JobApplication.id == application_id,
                 JobApplication.user_id == user_id,
             )
@@ -116,10 +141,21 @@ class ApplicationService:
             application_id=app.id,
             event_type="submitted",
             description="Application submitted",
-            metadata={"additional_answers": additional_answers},
+            event_metadata={"additional_answers": additional_answers},
         )
         self.db.add(timeline)
         await self.db.flush()
+
+        job_title = app.job.title if app.job else "Unknown Position"
+        await create_notification(
+            self.db, user_id, "application_submitted",
+            f"Application submitted for {job_title}",
+        )
+        await log_activity(
+            self.db, user_id, "submit_application",
+            resource_type="application", resource_id=application_id,
+            details={"job_title": job_title},
+        )
 
         return await self._to_response(app)
 
@@ -127,7 +163,9 @@ class ApplicationService:
         self, user_id: uuid.UUID, application_id: str
     ) -> ApplicationResponse:
         result = await self.db.execute(
-            select(JobApplication).where(
+            select(JobApplication)
+            .options(selectinload(JobApplication.job).selectinload(Job.company))
+            .where(
                 JobApplication.id == application_id,
                 JobApplication.user_id == user_id,
             )
@@ -177,15 +215,11 @@ class ApplicationService:
 
     async def get_stats(self, user_id: uuid.UUID) -> ApplicationStatsResponse:
         result = await self.db.execute(
-            select(
-                func.count(JobApplication.id),
-                func.sum(
-                    func.cast(JobApplication.status == ApplicationStatus.APPLIED.value, int)
-                ),
-            ).where(JobApplication.user_id == user_id)
+            select(func.count(JobApplication.id)).where(
+                JobApplication.user_id == user_id
+            )
         )
-        row = result.one()
-        total = row[0] or 0
+        total = result.scalar() or 0
 
         stats = {"total": total}
         for status in ApplicationStatus:
@@ -224,9 +258,21 @@ class ApplicationService:
                 created_at=app.cover_letter.created_at,
             )
 
+        job_title = app.job.title if app.job else ""
+        company_name = ""
+        company_logo = ""
+        if app.job and app.job.company:
+            company_name = app.job.company.name
+            company_logo = app.job.company.logo_url or ""
+
         return ApplicationResponse(
             id=str(app.id),
-            job={"id": str(app.job_id), "title": ""},
+            job={
+                "id": str(app.job_id),
+                "title": job_title,
+                "company_name": company_name,
+                "company_logo": company_logo,
+            },
             status=app.status.value if hasattr(app.status, 'value') else str(app.status),
             approval_required=app.approval_required,
             submitted_at=app.applied_at,

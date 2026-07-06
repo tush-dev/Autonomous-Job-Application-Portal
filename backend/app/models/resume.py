@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import String, Boolean, Integer, Float, Text, ForeignKey, Enum as SAEnum
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
+from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import enum
 
@@ -30,6 +30,7 @@ class Resume(Base, BaseModelMixin):
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
     file_type: Mapped[FileType] = mapped_column(SAEnum(FileType, name="file_type", create_type=False), nullable=False)
+    raw_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     parsed_data: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     parsing_confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     parsing_status: Mapped[ParsingStatus] = mapped_column(
@@ -40,7 +41,7 @@ class Resume(Base, BaseModelMixin):
     parsing_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    user: Mapped["User"] = relationship(back_populates="resumes")
+    user: Mapped["User"] = relationship(back_populates="resumes", foreign_keys="Resume.user_id")
     versions: Mapped[list["ResumeVersion"]] = relationship(back_populates="resume", cascade="all, delete-orphan")
     skill_graph: Mapped[Optional["ResumeSkillGraph"]] = relationship(back_populates="resume", uselist=False, cascade="all, delete-orphan")
 
@@ -67,7 +68,7 @@ class ResumeSkillGraph(Base, BaseModelMixin):
     strengths: Mapped[Optional[list]] = mapped_column(ARRAY(String), nullable=True)
     weaknesses: Mapped[Optional[list]] = mapped_column(ARRAY(String), nullable=True)
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    embedding: Mapped[Optional[list]] = mapped_column(nullable=True)
+    embedding: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     resume: Mapped["Resume"] = relationship(back_populates="skill_graph")
 

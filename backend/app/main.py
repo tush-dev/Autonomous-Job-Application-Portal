@@ -1,7 +1,18 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from app.core.exceptions import (
+    AppException,
+    NotFoundException,
+    UnauthorizedException,
+    ForbiddenException,
+    ConflictException,
+    ValidationException,
+    RateLimitException,
+)
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
@@ -14,13 +25,33 @@ from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.logging import LoggingMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.api.v1.router import api_router
+from app.api.v1.ws import router as ws_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
     setup_telemetry()
+    from sqlalchemy import text
     async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+    try:
+        import boto3
+        from botocore.config import Config
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=settings.S3_ENDPOINT,
+            aws_access_key_id=settings.S3_ACCESS_KEY,
+            aws_secret_access_key=settings.S3_SECRET_KEY,
+            region_name=settings.S3_REGION,
+            config=Config(signature_version="s3v4"),
+        )
+        buckets = [b["Name"] for b in s3.list_buckets().get("Buckets", [])]
+        if settings.S3_BUCKET not in buckets:
+            s3.create_bucket(Bucket=settings.S3_BUCKET)
+            import logging
+            logging.getLogger(__name__).info("created_minio_bucket", bucket=settings.S3_BUCKET)
+    except Exception:
         pass
     yield
     await engine.dispose()
@@ -33,6 +64,14 @@ app = FastAPI(
     redoc_url="/redoc" if settings.DEBUG else None,
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(AppException)
+async def app_exception_handler(request: Request, exc: AppException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": {"code": exc.code, "message": exc.message}},
+    )
 
 
 app.add_middleware(
@@ -54,6 +93,7 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api/v1")
+app.include_router(ws_router)
 
 
 @app.get("/health")

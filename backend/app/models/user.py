@@ -33,10 +33,11 @@ class User(Base, BaseModelMixin):
     mfa_secret: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    active_resume_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("resumes.id", ondelete="SET NULL"), nullable=True)
 
     settings: Mapped["UserSettings"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
     preferences: Mapped["UserPreferences"] = relationship(back_populates="user", uselist=False, cascade="all, delete-orphan")
-    resumes: Mapped[list["Resume"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    resumes: Mapped[list["Resume"]] = relationship(back_populates="user", cascade="all, delete-orphan", foreign_keys="Resume.user_id")
     applications: Mapped[list["JobApplication"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 

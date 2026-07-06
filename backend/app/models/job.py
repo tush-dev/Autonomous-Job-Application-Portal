@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import String, Boolean, Integer, Text, Float, ForeignKey, Enum as SAEnum
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
+from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import enum
 
@@ -11,11 +11,13 @@ from app.models.base import Base, BaseModelMixin
 
 
 class JobSource(str, enum.Enum):
+    JSEARCH = "jsearch"
     GREENHOUSE = "greenhouse"
     LEVER = "lever"
+    REMOTEOK = "remoteok"
+    ARBEITNOW = "arbeitnow"
     WELLFOUND = "wellfound"
     LINKEDIN = "linkedin"
-    REMOTEOK = "remoteok"
     YC_JOBS = "yc_jobs"
     COMPANY_CAREERS = "company_careers"
     RSS_FEED = "rss_feed"
@@ -55,8 +57,8 @@ class Company(Base, BaseModelMixin):
     headquarters: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     careers_page_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     ats_provider: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    embedding: Mapped[Optional[list]] = mapped_column(nullable=True)
-    metadata: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    embedding: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    company_metadata: Mapped[Optional[dict]] = mapped_column("metadata", JSONB, nullable=True)
 
     jobs: Mapped[list["Job"]] = relationship(back_populates="company", cascade="all, delete-orphan")
 
@@ -69,7 +71,7 @@ class Job(Base, BaseModelMixin):
     source_job_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    description_embedding: Mapped[Optional[list]] = mapped_column(nullable=True)
+    description_embedding: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
     remote: Mapped[RemoteType] = mapped_column(
         SAEnum(RemoteType, name="remote_type", create_type=False),

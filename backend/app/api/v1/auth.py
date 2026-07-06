@@ -93,8 +93,9 @@ async def verify_email(request: VerifyEmailRequest, db: AsyncSession = Depends(g
 @router.post("/mfa/setup", response_model=MfaSetupResponse)
 async def setup_mfa(
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    service = AuthService()
+    service = AuthService(db)
     result = await service.setup_mfa(current_user)
     return result
 
@@ -124,6 +125,25 @@ async def disable_mfa(
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.get("/me/settings")
+async def get_my_settings(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = AuthService(db)
+    return await service.get_settings(current_user)
+
+
+@router.put("/me/settings")
+async def update_my_settings(
+    updates: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = AuthService(db)
+    return await service.update_settings(current_user, updates)
 
 
 @router.patch("/me", response_model=UserResponse)

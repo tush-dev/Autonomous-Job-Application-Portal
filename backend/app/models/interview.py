@@ -4,7 +4,7 @@ from typing import Optional
 
 from sqlalchemy import String, Boolean, Integer, Text, ForeignKey, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 import enum
 
 from app.models.base import Base, BaseModelMixin
@@ -33,3 +33,5 @@ class InterviewSchedule(Base, BaseModelMixin):
         SAEnum(InterviewStatus, name="interview_status", create_type=False),
         default=InterviewStatus.SCHEDULED,
     )
+
+    application: Mapped["JobApplication"] = relationship(back_populates="interviews")

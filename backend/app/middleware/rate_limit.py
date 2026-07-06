@@ -7,9 +7,9 @@ from app.core.config import settings
 
 
 RATE_LIMITS = {
-    "POST:/api/v1/auth/login": (5, 60),
-    "POST:/api/v1/auth/signup": (3, 60),
-    "POST:/api/v1/auth/forgot-password": (2, 60),
+    "POST:/api/v1/auth/login": (20, 60),
+    "POST:/api/v1/auth/signup": (10, 60),
+    "POST:/api/v1/auth/forgot-password": (5, 60),
     "POST:/api/v1/resumes/upload": (10, 60),
     "ai": (20, 60),
     "POST:/api/v1/applications": (10, 60),

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import Integer
 import structlog
 
 from app.core.database import get_db
@@ -63,7 +64,29 @@ async def get_analytics(
     admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    return {"message": "Admin analytics endpoint (to be implemented)"}
+    from sqlalchemy import select, func
+    from app.models.application import JobApplication
+    from app.models.user import User as UserModel
+
+    total_users = (await db.execute(select(func.count(UserModel.id)))).scalar() or 0
+    total_applications = (await db.execute(select(func.count(JobApplication.id)))).scalar() or 0
+    submitted = (await db.execute(
+        select(func.count(JobApplication.id)).where(JobApplication.status == "applied")
+    )).scalar() or 0
+    interviews = (await db.execute(
+        select(func.count(JobApplication.id)).where(JobApplication.status == "interview")
+    )).scalar() or 0
+    offers = (await db.execute(
+        select(func.count(JobApplication.id)).where(JobApplication.status == "offer")
+    )).scalar() or 0
+
+    return {
+        "total_users": total_users,
+        "total_applications": total_applications,
+        "submitted": submitted,
+        "interviews": interviews,
+        "offers": offers,
+    }
 
 
 @router.get("/logs")
@@ -71,7 +94,14 @@ async def get_logs(
     admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    return {"message": "System logs endpoint (to be implemented)"}
+    from sqlalchemy import select, desc
+    from app.models.misc import ActivityLog
+
+    result = await db.execute(
+        select(ActivityLog).order_by(desc(ActivityLog.created_at)).limit(100)
+    )
+    logs = result.scalars().all()
+    return {"logs": logs, "total": len(logs)}
 
 
 @router.get("/audit-logs")
@@ -79,7 +109,14 @@ async def get_audit_logs(
     admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    return {"message": "Audit logs endpoint (to be implemented)"}
+    from sqlalchemy import select, desc
+    from app.models.misc import AuditLog
+
+    result = await db.execute(
+        select(AuditLog).order_by(desc(AuditLog.created_at)).limit(100)
+    )
+    logs = result.scalars().all()
+    return {"logs": logs, "total": len(logs)}
 
 
 @router.get("/ai-usage")
@@ -87,4 +124,32 @@ async def get_ai_usage(
     admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    return {"message": "AI usage endpoint (to be implemented)"}
+    from sqlalchemy import select, func, desc
+    from app.models.misc import AIRequest
+
+    result = await db.execute(
+        select(
+            AIRequest.model,
+            func.count(AIRequest.id).label("requests"),
+            func.avg(AIRequest.latency_ms).label("avg_latency_ms"),
+            func.sum(AIRequest.prompt_tokens).label("total_prompt_tokens"),
+            func.sum(AIRequest.completion_tokens).label("total_completion_tokens"),
+            func.sum(AIRequest.cost_cents).label("total_cost_cents"),
+            func.sum(func.cast(AIRequest.cache_hit, Integer)).label("cache_hits"),
+        ).group_by(AIRequest.model)
+    )
+    rows = result.all()
+    return {
+        "usage": [
+            {
+                "model": r.model,
+                "requests": r.requests,
+                "avg_latency_ms": round(float(r.avg_latency_ms), 1) if r.avg_latency_ms else 0,
+                "total_prompt_tokens": r.total_prompt_tokens or 0,
+                "total_completion_tokens": r.total_completion_tokens or 0,
+                "total_cost_cents": r.total_cost_cents or 0,
+                "cache_hits": r.cache_hits or 0,
+            }
+            for r in rows
+        ]
+    }

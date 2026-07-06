@@ -1,7 +1,9 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
-from typing import Optional
-from datetime import datetime
 import re
+import uuid
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class SignupRequest(BaseModel):
@@ -86,7 +88,7 @@ class TokenResponse(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id: str
+    id: uuid.UUID
     email: str
     full_name: str
     avatar_url: Optional[str] = None

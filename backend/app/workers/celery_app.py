@@ -29,7 +29,11 @@ celery_app.conf.update(
     beat_schedule={
         "refresh-job-cache": {
             "task": "app.workers.job_search_tasks.refresh_job_cache",
-            "schedule": 1800.0,
+            "schedule": 3600.0,
+        },
+        "expire-old-jobs": {
+            "task": "app.workers.job_search_tasks.expire_old_jobs",
+            "schedule": 86400.0,
         },
         "send-interview-reminders": {
             "task": "app.workers.notification_tasks.send_interview_reminders",

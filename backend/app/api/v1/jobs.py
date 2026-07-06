@@ -19,6 +19,11 @@ async def search_jobs(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    logger.info("search_jobs_request",
+                 query=request.query,
+                 min_match_score=request.min_match_score,
+                 sort_by=request.sort_by,
+                 page=request.page)
     service = JobService(db)
     result = await service.search_jobs(
         user_id=current_user.id,
@@ -31,6 +36,8 @@ async def search_jobs(
         exclude_applied=request.exclude_applied,
         page=request.page,
         page_size=request.page_size,
+        min_match_score=request.min_match_score,
+        sort_by=request.sort_by,
     )
     return result
 

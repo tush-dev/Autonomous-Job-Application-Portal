@@ -52,6 +52,7 @@ class JobApplication(Base, BaseModelMixin):
     job: Mapped["Job"] = relationship(back_populates="applications")
     timeline: Mapped[list["ApplicationTimeline"]] = relationship(back_populates="application", cascade="all, delete-orphan")
     cover_letter: Mapped[Optional["CoverLetter"]] = relationship(back_populates="application", uselist=False, cascade="all, delete-orphan")
+    interviews: Mapped[list["InterviewSchedule"]] = relationship(back_populates="application", cascade="all, delete-orphan")
 
 
 class ApplicationTimeline(Base, BaseModelMixin):
@@ -60,7 +61,7 @@ class ApplicationTimeline(Base, BaseModelMixin):
     application_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("job_applications.id", ondelete="CASCADE"), nullable=False)
     event_type: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    metadata: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    event_metadata: Mapped[Optional[dict]] = mapped_column("metadata", JSONB, nullable=True)
 
     application: Mapped["JobApplication"] = relationship(back_populates="timeline")
 

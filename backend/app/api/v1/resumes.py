@@ -7,7 +7,7 @@ from app.core.exceptions import NotFoundException, ValidationException
 from app.models.user import User
 from app.schemas.resume import (
     ResumeUploadResponse, ResumeResponse, ResumeAnalysisResponse,
-    ResumeTailorRequest, ResumeTailorResponse,
+    ResumeTailorRequest, ResumeTailorResponse, ResumeUpdateRequest,
 )
 from app.api.deps import get_current_user
 from app.services.resume_service import ResumeService
@@ -37,6 +37,35 @@ async def list_resumes(
     return resumes
 
 
+@router.get("/count")
+async def count_resumes(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.resume import Resume
+    from sqlalchemy import select, func
+
+    result = await db.execute(
+        select(func.count(Resume.id)).where(
+            Resume.user_id == current_user.id,
+            Resume.is_active == True,
+        )
+    )
+    count = result.scalar() or 0
+    return {"count": count}
+
+
+@router.put("/{resume_id}", response_model=ResumeResponse)
+async def update_resume(
+    resume_id: str,
+    request: ResumeUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ResumeService(db)
+    return await service.update_resume(current_user.id, resume_id, request.parsed_data or {})
+
+
 @router.get("/{resume_id}", response_model=ResumeResponse)
 async def get_resume(
     resume_id: str,
@@ -46,6 +75,17 @@ async def get_resume(
     service = ResumeService(db)
     resume = await service.get_resume(current_user.id, resume_id)
     return resume
+
+
+@router.get("/{resume_id}/download")
+async def download_resume(
+    resume_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ResumeService(db)
+    url = await service.get_presigned_download_url(current_user.id, resume_id)
+    return {"url": url}
 
 
 @router.delete("/{resume_id}")

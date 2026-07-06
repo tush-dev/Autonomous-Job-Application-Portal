@@ -7,6 +7,7 @@ from app.models.application import JobApplication, ApplicationTimeline, CoverLet
 from app.models.interview import InterviewSchedule
 from app.models.notification import Notification, NotificationSettings
 from app.models.misc import ActivityLog, AIRequest, Feedback, AuditLog
+from app.models.matching import JobMatch, CareerInsight, LearningPath
 
 __all__ = [
     "Base",
@@ -18,4 +19,5 @@ __all__ = [
     "InterviewSchedule",
     "Notification", "NotificationSettings",
     "ActivityLog", "AIRequest", "Feedback", "AuditLog",
+    "JobMatch", "CareerInsight", "LearningPath",
 ]
