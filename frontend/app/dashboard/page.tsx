@@ -51,12 +51,24 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [greeting, setGreeting] = useState("Good morning");
+  const [userName, setUserName] = useState("User");
 
   useEffect(() => {
     const hour = new Date().getHours();
     if (hour < 12) setGreeting("Good morning");
     else if (hour < 17) setGreeting("Good afternoon");
     else setGreeting("Good evening");
+  }, []);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        const user = JSON.parse(stored);
+        if (user.first_name) setUserName(user.first_name);
+        else if (user.email) setUserName(user.email.split("@")[0]);
+      }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -107,7 +119,7 @@ export default function DashboardPage() {
                   <span>Career Copilot is online</span>
                 </div>
                 <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">
-                  {greeting}, <span className="text-gradient">Tushar</span>
+                  {greeting}, <span className="text-gradient">{userName}</span>
                 </h1>
                 <p className="text-sm text-muted-foreground">
                   {appStats?.total || 0} applications tracked

@@ -39,5 +39,9 @@ celery_app.conf.update(
             "task": "app.workers.notification_tasks.send_interview_reminders",
             "schedule": 300.0,
         },
+        "score-all-user-resumes": {
+            "task": "app.workers.job_search_tasks.score_all_user_resumes",
+            "schedule": 1800.0,
+        },
     },
 )

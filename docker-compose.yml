@@ -4,7 +4,7 @@ x-app-env: &app-env
   APP_NAME: ${APP_NAME:-JobAgent}
   APP_ENV: ${APP_ENV:-development}
   APP_SECRET_KEY: ${APP_SECRET_KEY:-change-me}
-  DEBUG: ${DEBUG:-true}
+  DEBUG: ${JOBAGENT_DEBUG:-true}
   DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://jobagent:jobagent_dev@postgres:5432/jobagent}
   DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-10}
   DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-5}
@@ -48,7 +48,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile.dev
     ports:
-      - '8000:8000'
+      - '8001:8000'
     environment: *app-env
     depends_on:
       postgres:
@@ -79,6 +79,7 @@ services:
     volumes:
       - ./backend:/app
       - /app/__pycache__
+    restart: unless-stopped
 
   beat:
     build:
@@ -93,6 +94,7 @@ services:
         condition: service_started
     volumes:
       - ./backend:/app
+    restart: unless-stopped
 
   frontend:
     build:
@@ -101,7 +103,7 @@ services:
     ports:
       - '3000:3000'
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+      - NEXT_PUBLIC_API_URL=http://localhost:8001/api/v1
       - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
     depends_on:
       - api
@@ -113,7 +115,7 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     ports:
-      - '5432:5432'
+      - '5433:5432'
     environment:
       POSTGRES_DB: jobagent
       POSTGRES_USER: jobagent
@@ -132,7 +134,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - '6379:6379'
+      - '6380:6379'
     command: redis-server --requirepass redis_dev --appendonly yes
     volumes:
       - redisdata:/data

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Boolean, Integer, Float, Text, ForeignKey, Enum as SAEnum
+from sqlalchemy import String, Boolean, Integer, Float, Text, ForeignKey, Enum as SAEnum, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import enum
@@ -18,6 +18,9 @@ class MatchDifficulty(str, enum.Enum):
 
 class JobMatch(Base, BaseModelMixin):
     __tablename__ = "job_matches"
+    __table_args__ = (
+        UniqueConstraint("resume_id", "job_id", "user_id", name="uq_job_match_resume_job_user"),
+    )
 
     resume_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("resumes.id", ondelete="CASCADE"), nullable=False, index=True)
     job_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)

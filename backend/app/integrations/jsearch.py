@@ -27,16 +27,20 @@ async def search_jobs(
     query: str,
     location: Optional[str] = None,
     num_pages: int = 1,
-    country: str = "us",
+    country: Optional[str] = None,
 ) -> list[dict]:
     if not settings.JSEARCH_API_KEY:
         logger.warning("JSEARCH_API_KEY not configured")
         return []
 
+    location_lower = (location or "").lower()
+    resolved_country = country or ("in" if any(term in location_lower for term in ("india", "bangalore", "bengaluru", "delhi", "gurgaon", "noida", "pune", "hyderabad", "mumbai")) else "us")
+    resolved_query = query.strip() or "entry level software engineer"
+
     params: dict[str, str | int] = {
-        "query": f"{query} in {location}" if location else query,
+        "query": f"{resolved_query} in {location}" if location else resolved_query,
         "num_pages": num_pages,
-        "country": country,
+        "country": resolved_country,
     }
 
     async with httpx.AsyncClient(timeout=60) as client:
@@ -48,7 +52,17 @@ async def search_jobs(
             )
             resp.raise_for_status()
             data = resp.json()
-            raw_jobs = data.get("data", {}).get("jobs", [])
+
+            raw_jobs = []
+            if isinstance(data, dict):
+                data_content = data.get("data", data)
+                if isinstance(data_content, dict):
+                    raw_jobs = data_content.get("jobs", [])
+                elif isinstance(data_content, list):
+                    raw_jobs = data_content
+            elif isinstance(data, list):
+                raw_jobs = data
+
             logger.info("JSearch result: %d jobs", len(raw_jobs))
 
             normalized = []
@@ -120,7 +134,7 @@ def _normalize(job: dict) -> Optional[dict]:
         "salary_interval": salary_interval,
         "remote": remote,
         "employment_type": employment_type,
-        "experience_level": None,
+        "experience_level": job.get("job_experience_level"),
         "skills_required": skills,
         "posted_at": job.get("job_posted_at_datetime_utc"),
     }

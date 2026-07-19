@@ -16,6 +16,36 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, formatDate, formatFileSize } from "@/lib/utils";
 import type { Resume } from "@/types/api";
+import { AxiosError } from "axios";
+
+type UploadErrorPayload = {
+  detail?: string | Array<{ msg?: string; loc?: Array<string | number> }>;
+  message?: string;
+};
+
+function getUploadErrorMessage(error: unknown): string {
+  const apiError = error as AxiosError<UploadErrorPayload>;
+  const detail = apiError.response?.data?.detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => item?.msg)
+      .filter((message): message is string => Boolean(message));
+    if (messages.length) return messages.join(". ");
+  }
+  if (typeof apiError.response?.data?.message === "string") {
+    return apiError.response.data.message;
+  }
+  if (apiError.code === "ECONNABORTED") {
+    return "Resume processing timed out. Please try again.";
+  }
+  return "Resume upload failed. Please check the file and try again.";
+}
+
+function confidencePercent(value?: number | null): number {
+  if (value == null || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value <= 1 ? value * 100 : value));
+}
 
 const container = {
   hidden: { opacity: 0 },
@@ -32,6 +62,7 @@ export default function ResumesPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -43,16 +74,31 @@ export default function ResumesPage() {
 
   const handleUpload = useCallback(async (file: File) => {
     if (!file) return;
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    if (!extension || !["pdf", "doc", "docx"].includes(extension)) {
+      setUploadError("Please select a PDF, DOC, or DOCX resume.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError("The resume must be smaller than 10 MB.");
+      return;
+    }
     setUploading(true);
+    setUploadError("");
     try {
       const form = new FormData();
       form.append("file", file);
       const res = await apiClient.post("/resumes/upload", form, {
         headers: { "Content-Type": "multipart/form-data" },
+        // Resume extraction and analysis may take longer than normal API calls.
+        timeout: 120000,
       });
+      if (res.data.parsing_status === "failed") {
+        setUploadError("The file uploaded, but its text could not be parsed. Try a text-based PDF or DOCX file.");
+      }
       setResumes((prev) => [res.data, ...prev]);
-    } catch {
-      // ignore
+    } catch (error) {
+      setUploadError(getUploadErrorMessage(error));
     } finally {
       setUploading(false);
     }
@@ -139,6 +185,12 @@ export default function ResumesPage() {
             </>
           )}
         </div>
+        {uploadError && (
+          <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{uploadError}</span>
+          </div>
+        )}
       </motion.div>
 
       {/* Resume list */}
@@ -212,13 +264,13 @@ export default function ResumesPage() {
 
                       {resume.parsing_confidence != null && (
                         <span className="text-[10px] text-muted-foreground">
-                          {resume.parsing_confidence.toFixed(0)}% confidence
+                          {confidencePercent(resume.parsing_confidence).toFixed(0)}% confidence
                         </span>
                       )}
                     </div>
 
                     {resume.parsing_confidence != null && (
-                      <Progress value={resume.parsing_confidence} className="mt-3 h-1" />
+                      <Progress value={confidencePercent(resume.parsing_confidence)} className="mt-3 h-1" />
                     )}
                   </CardContent>
                 </Card>

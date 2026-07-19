@@ -13,7 +13,8 @@ from app.models.application import JobApplication
 from app.models.matching import JobMatch
 from app.schemas.job import JobSearchResponse, JobResponse, CompanyResponse, JobMatchBrief
 from app.services.cache_service import CacheService
-from app.integrations import jsearch, greenhouse, lever, remoteok, arbeitnow
+from app.integrations import jsearch, greenhouse, lever, remoteok, arbeitnow, remotive, jobicy
+from app.services.workplace import classify_workplace
 
 logger = structlog.get_logger()
 
@@ -38,7 +39,56 @@ class JobService:
         min_match_score: Optional[float] = None,
         sort_by: Optional[str] = None,
     ) -> JobSearchResponse:
-        await self._fetch_external_jobs(query, location, sources)
+        inventory_result = await self.db.execute(
+            select(func.count(Job.id)).where(Job.is_active == True)
+        )
+        inventory_count = inventory_result.scalar() or 0
+        if inventory_count == 0:
+            await self._fetch_external_jobs(query, location, sources)
+
+        from app.models.user import User
+        from app.models.resume import Resume
+
+        resume_result = await self.db.execute(
+            select(User.active_resume_id).where(User.id == user_id)
+        )
+        resume_id = resume_result.scalar_one_or_none()
+        if not resume_id:
+            fallback = await self.db.execute(
+                select(Resume.id)
+                .where(
+                    Resume.user_id == user_id,
+                    Resume.parsing_status == "COMPLETED",
+                    Resume.is_active == True,
+                )
+                .order_by(desc(Resume.created_at))
+                .limit(1)
+            )
+            resume_id = fallback.scalar_one_or_none()
+
+        if (sort_by == "match" or min_match_score is not None) and not resume_id:
+            return JobSearchResponse(
+                jobs=[], total=0, page=page, page_size=page_size, total_pages=0
+            )
+
+        # Score newly ingested jobs before building the response so the first
+        # search already contains match data (instead of requiring a refresh).
+        try:
+            from app.services.matching_service import MatchingService
+            if resume_id:
+                existing_matches = await self.db.execute(
+                    select(func.count(JobMatch.id)).where(
+                        JobMatch.user_id == user_id,
+                        JobMatch.resume_id == resume_id,
+                    )
+                )
+                # Initial scoring can be expensive for a large catalog. Once a
+                # resume has matches, searches must return immediately; periodic
+                # workers handle newly ingested jobs.
+                if (existing_matches.scalar() or 0) == 0:
+                    await MatchingService(self.db).score_jobs_for_resume(user_id, resume_id)
+        except Exception as exc:
+            logger.warning("pre_search_scoring_failed", error=str(exc))
 
         stmt = (
             select(Job)
@@ -72,12 +122,20 @@ class JobService:
             if source_enums:
                 stmt = stmt.where(Job.source.in_(source_enums))
 
+        if exclude_applied:
+            stmt = stmt.where(
+                ~Job.id.in_(
+                    select(JobApplication.job_id).where(JobApplication.user_id == user_id)
+                )
+            )
+
         if min_match_score is not None:
             stmt = stmt.join(
                 JobMatch,
                 and_(
                     JobMatch.job_id == Job.id,
                     JobMatch.user_id == user_id,
+                    JobMatch.resume_id == resume_id,
                 ),
             ).where(JobMatch.match_score >= min_match_score)
 
@@ -90,10 +148,13 @@ class JobService:
         if sort_by == "match":
             match_subq = (
                 select(JobMatch.job_id, JobMatch.match_score)
-                .where(JobMatch.user_id == user_id)
+                .where(
+                    JobMatch.user_id == user_id,
+                    JobMatch.resume_id == resume_id,
+                )
                 .subquery()
             )
-            stmt = stmt.outerjoin(
+            stmt = stmt.join(
                 match_subq,
                 Job.id == match_subq.c.job_id,
             ).order_by(desc(match_subq.c.match_score).nullslast(), desc(Job.created_at))
@@ -120,6 +181,7 @@ class JobService:
             match_result = await self.db.execute(
                 select(JobMatch).where(
                     JobMatch.user_id == user_id,
+                    JobMatch.resume_id == resume_id,
                     JobMatch.job_id.in_([j.id for j in jobs]),
                 )
             )
@@ -185,12 +247,14 @@ class JobService:
         location: Optional[str] = None,
         sources: Optional[list[str]] = None,
     ):
-        source_list = sources or ["jsearch", "greenhouse", "lever", "remoteok", "arbeitnow"]
+        source_list = sources or ["jsearch", "greenhouse", "lever", "remoteok", "arbeitnow", "remotive", "jobicy"]
         all_external: list[dict] = []
 
         if "jsearch" in source_list:
             try:
-                jsearch_jobs = await jsearch.search_jobs(query, location)
+                search_query = query or "entry level AI full stack software engineer"
+                search_location = location or "India"
+                jsearch_jobs = await jsearch.search_jobs(search_query, search_location)
                 all_external.extend(jsearch_jobs)
             except Exception as e:
                 logger.error("jsearch_fetch_failed", error=str(e))
@@ -223,8 +287,29 @@ class JobService:
             except Exception as e:
                 logger.error("arbeitnow_fetch_failed", error=str(e))
 
+        if "remotive" in source_list:
+            try:
+                all_external.extend(await remotive.search_jobs(query, location))
+            except Exception as e:
+                logger.error("remotive_fetch_failed", error=str(e))
+
+        if "jobicy" in source_list:
+            try:
+                all_external.extend(await jobicy.search_jobs(query, location))
+            except Exception as e:
+                logger.error("jobicy_fetch_failed", error=str(e))
+
         for ext in all_external:
-            await self._store_external_job(ext)
+            try:
+                async with self.db.begin_nested():
+                    await self._store_external_job(ext)
+            except Exception as exc:
+                logger.warning(
+                    "external_job_store_failed",
+                    source=ext.get("source"),
+                    source_job_id=ext.get("source_job_id"),
+                    error=str(exc),
+                )
 
     async def _store_external_job(self, ext: dict):
         if not ext.get("title"):
@@ -234,7 +319,7 @@ class JobService:
         source_enum = getattr(JobSource, source.upper(), JobSource.MANUAL)
 
         source_job_id = (ext.get("source_job_id") or "").strip()
-        if source_job_id and len(source_job_id) > 4:
+        if source_job_id:
             existing = await self.db.execute(
                 select(Job).where(
                     Job.source == source_enum,
@@ -248,9 +333,12 @@ class JobService:
         company = None
         if company_name:
             comp_result = await self.db.execute(
-                select(Company).where(Company.name == company_name)
+                select(Company)
+                .where(Company.name == company_name)
+                .order_by(Company.created_at)
+                .limit(1)
             )
-            company = comp_result.scalar_one_or_none()
+            company = comp_result.scalars().first()
             if not company:
                 company = Company(
                     name=company_name,
@@ -260,7 +348,9 @@ class JobService:
                 self.db.add(company)
                 await self.db.flush()
 
-        remote_str = ext.get("remote", "unspecified")
+        remote_str = classify_workplace(
+            ext.get("remote"), ext.get("location"), ext.get("description")
+        )
         remote_enum = getattr(RemoteType, remote_str.upper(), RemoteType.UNSPECIFIED)
 
         salary_interval = ext.get("salary_interval", "yearly")
@@ -285,10 +375,7 @@ class JobService:
             raw_data=ext,
         )
         self.db.add(job)
-        try:
-            await self.db.flush()
-        except Exception:
-            await self.db.rollback()
+        await self.db.flush()
 
     async def get_job(self, user_id: uuid.UUID, job_id: str) -> JobResponse:
         result = await self.db.execute(select(Job).where(Job.id == job_id))

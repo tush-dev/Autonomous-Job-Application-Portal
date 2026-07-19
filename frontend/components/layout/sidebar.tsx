@@ -12,7 +12,6 @@ import {
   MessageSquare,
   Brain,
   Settings,
-  Sparkles,
   ChevronLeft,
   ChevronRight,
   Rocket,
@@ -57,12 +56,12 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       <motion.aside
         animate={{ width: collapsed ? 72 : 260 }}
         transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-        className="fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-border/50 bg-sidebar/80 backdrop-blur-xl"
+        className="fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-sidebar-border bg-sidebar shadow-[10px_0_40px_rgba(15,55,45,.08)]"
       >
         {/* Logo */}
         <div className="flex h-16 items-center gap-3 px-5 border-b border-border/30">
-          <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-purple-600 shadow-lg shadow-primary/20">
-            <Rocket className="h-5 w-5 text-white" />
+          <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary shadow-lg shadow-black/10">
+            <Rocket className="h-5 w-5 text-sidebar-primary-foreground" />
           </div>
           <AnimatePresence>
             {!collapsed && (
@@ -72,7 +71,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 exit={{ opacity: 0, width: 0 }}
                 className="overflow-hidden"
               >
-                <span className="text-base font-semibold tracking-tight">CareerAI</span>
+                <span className="text-base font-semibold tracking-tight text-sidebar-accent-foreground">JobAgent<span className="text-sidebar-primary">.</span></span>
               </motion.div>
             )}
           </AnimatePresence>
@@ -81,7 +80,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {/* Nav items */}
         <nav className="flex-1 space-y-1 p-3 overflow-y-auto scrollbar-hide">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+            const isActive =
+              pathname === item.href ||
+              (item.href !== "/dashboard" && pathname.startsWith(item.href + "/"));
             const Icon = item.icon;
             return collapsed ? (
               <Tooltip key={item.href}>
@@ -91,7 +92,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     className={cn(
                       "flex h-10 w-full items-center justify-center rounded-xl transition-all duration-200",
                       isActive
-                        ? "bg-primary/10 text-primary shadow-sm"
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[0_8px_20px_rgba(244,196,107,.18)]"
                         : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                     )}
                   >
@@ -109,14 +110,19 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
                     isActive
-                      ? "bg-primary/10 text-primary shadow-sm"
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[0_8px_20px_rgba(244,196,107,.18)]"
                       : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   )}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
                   <span className="flex-1 truncate">{item.label}</span>
                   {item.badge && (
-                    <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                    <span className={cn(
+                      "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
+                      isActive
+                        ? "bg-sidebar-primary-foreground/10 text-sidebar-primary-foreground"
+                        : "bg-sidebar-primary/10 text-sidebar-primary"
+                    )}>
                       {item.badge}
                     </span>
                   )}
@@ -139,7 +145,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     className={cn(
                       "flex h-10 w-full items-center justify-center rounded-xl transition-all duration-200",
                       isActive
-                        ? "bg-primary/10 text-primary"
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[0_8px_20px_rgba(244,196,107,.18)]"
                         : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                     )}
                   >
@@ -154,7 +160,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
                     isActive
-                      ? "bg-primary/10 text-primary"
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[0_8px_20px_rgba(244,196,107,.18)]"
                       : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   )}
                 >

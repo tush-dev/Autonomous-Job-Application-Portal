@@ -18,8 +18,36 @@ logger = logging.getLogger(__name__)
 GREENHOUSE_BASE = "https://boards-api.greenhouse.io/v1/boards"
 
 DEFAULT_BOARD_TOKENS = [
-    "greenhouse",
-    "lever",
+    "airbnb",
+    "netflix",
+    "spotify",
+    "figma",
+    "notion",
+    "discord",
+    "stripe",
+    "gitlab",
+    "hashicorp",
+    "docker",
+    "elastic",
+    "grafana",
+    "sentry",
+    "twilio",
+    "urban-outfitters",
+    "warby-parker",
+    "wayfair",
+    "woocommerce",
+    "xero",
+    "zynga",
+    "glossier",
+    "loom",
+    "mercury",
+    "ramp",
+    "vercel",
+    "linear",
+    "posthog",
+    "retool",
+    "supabase",
+    "planetscale",
 ]
 
 MAX_JOBS_PER_BOARD = 100
@@ -102,6 +130,23 @@ def _normalize(job: dict, board_token: str) -> dict:
     location_parts = [office.get("name", ""), office.get("location", "")]
     location_str = ", ".join(filter(None, location_parts)) if any(location_parts) else job.get("location", {}).get("name", "")
 
+    skills_required = []
+    description = job.get("content", "") or ""
+    common_tech = [
+        "python", "javascript", "typescript", "java", "c++", "c#", "go", "golang", "rust",
+        "react", "angular", "vue", "vuejs", "node", "nodejs", "django", "flask", "fastapi",
+        "spring", "rails", "ruby", "php", "swift", "kotlin",
+        "sql", "mysql", "postgresql", "mongodb", "redis", "elasticsearch",
+        "aws", "gcp", "azure", "docker", "kubernetes", "terraform", "jenkins", "ci/cd",
+        "machine learning", "ml", "ai", "data science", "tensorflow", "pytorch",
+        "html", "css", "sass", "graphql", "rest", "api", "git",
+        "agile", "scrum", "jira", "linux", "bash",
+    ]
+    desc_lower = description.lower()
+    for tech in common_tech:
+        if tech in desc_lower:
+            skills_required.append(tech)
+
     return {
         "title": job.get("title", ""),
         "location": location_str,
@@ -117,6 +162,7 @@ def _normalize(job: dict, board_token: str) -> dict:
         "remote": "unspecified",
         "employment_type": next((m.get("value") for m in metadata if "employment" in m.get("name", "").lower()), None),
         "experience_level": next((m.get("value") for m in metadata if "experience" in m.get("name", "").lower()), None),
+        "skills_required": skills_required if skills_required else None,
     }
 
 

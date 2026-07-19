@@ -4,6 +4,7 @@ Arbeitnow provides a free, no-key-required API for job listings.
   GET https://www.arbeitnow.com/api/job-board-api — returns job listings
 """
 import logging
+import asyncio
 from typing import Optional
 
 import httpx
@@ -16,25 +17,36 @@ ARBEITNOW_URL = "https://www.arbeitnow.com/api/job-board-api"
 async def search_jobs(
     query: str,
     location: Optional[str] = None,
+    max_pages: int = 10,
 ) -> list[dict]:
-    params = {"per_page": 50}
+    params = {"per_page": 100}
     if query:
         params["search"] = query
 
+    raw_jobs: list[dict] = []
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(ARBEITNOW_URL, params=params)
-            resp.raise_for_status()
-            data = resp.json()
+            next_url: Optional[str] = ARBEITNOW_URL
+            page = 1
+            while next_url and page <= max(1, min(max_pages, 20)):
+                request_params = {**params, "page": page} if next_url == ARBEITNOW_URL else None
+                resp = await client.get(next_url, params=request_params)
+                resp.raise_for_status()
+                data = resp.json()
+                page_jobs = data.get("data", []) if isinstance(data, dict) else []
+                if not isinstance(page_jobs, list) or not page_jobs:
+                    break
+                raw_jobs.extend(page_jobs)
+                next_url = (data.get("links") or {}).get("next")
+                page += 1
+                if next_url:
+                    # The feed is free and explicitly asks clients not to abuse it.
+                    await asyncio.sleep(0.5)
     except Exception as e:
         logger.error("Arbeitnow error: %s", e)
         return []
 
-    raw_jobs = data.get("data", []) if isinstance(data, dict) else data
-    if not isinstance(raw_jobs, list):
-        return []
-
-    logger.info("Arbeitnow: %d total jobs", len(raw_jobs))
+    logger.info("Arbeitnow: %d jobs across %d page(s)", len(raw_jobs), max(0, page - 1))
 
     results = []
     query_lower = query.lower() if query else ""
@@ -87,7 +99,7 @@ def _normalize(job: dict) -> Optional[dict]:
         "salary_max": None,
         "salary_currency": "EUR",
         "salary_interval": "yearly",
-        "remote": "remote" if job.get("remote") else "unspecified",
+        "remote": "remote" if job.get("remote") else "onsite",
         "employment_type": job.get("job_type"),
         "experience_level": None,
         "skills_required": tags,

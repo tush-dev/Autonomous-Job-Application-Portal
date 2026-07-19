@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, desc
 import structlog
 
 from app.core.database import get_db
 from app.core.exceptions import NotFoundException
 from app.models.user import User
+from app.models.resume import Resume
 from app.schemas.job import JobSearchRequest, JobSearchResponse, JobResponse
 from app.api.deps import get_current_user
 from app.services.job_service import JobService
@@ -39,6 +41,7 @@ async def search_jobs(
         min_match_score=request.min_match_score,
         sort_by=request.sort_by,
     )
+
     return result
 
 

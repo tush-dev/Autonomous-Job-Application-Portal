@@ -19,6 +19,25 @@ LEVER_BASE = "https://api.lever.co/v0/postings"
 
 DEFAULT_BOARD_TOKENS = [
     "lever",
+    "netlify",
+    "gitlab",
+    "cloudflare",
+    "dropbox",
+    "ashby",
+    "plaid",
+    "rippling",
+    "brex",
+    "ramp",
+    "zapier",
+    "buffer",
+    "helpscout",
+    "toggl",
+    "pipedrive",
+    "close",
+    "front",
+    "deel",
+    "remote",
+    "oyster",
 ]
 
 MAX_JOBS_PER_BOARD = 100
@@ -109,6 +128,22 @@ def _normalize(job: dict, board_token: str) -> dict:
         description_text = _re.sub(r"<[^>]+>", " ", description)
         description_text = html.unescape(description_text)
 
+    skills_required = []
+    common_tech = [
+        "python", "javascript", "typescript", "java", "c++", "c#", "go", "golang", "rust",
+        "react", "angular", "vue", "vuejs", "node", "nodejs", "django", "flask", "fastapi",
+        "spring", "rails", "ruby", "php", "swift", "kotlin",
+        "sql", "mysql", "postgresql", "mongodb", "redis", "elasticsearch",
+        "aws", "gcp", "azure", "docker", "kubernetes", "terraform", "jenkins", "ci/cd",
+        "machine learning", "ml", "ai", "data science", "tensorflow", "pytorch",
+        "html", "css", "sass", "graphql", "rest", "api", "git",
+        "agile", "scrum", "jira", "linux", "bash",
+    ]
+    desc_lower = description_text.lower()
+    for tech in common_tech:
+        if tech in desc_lower:
+            skills_required.append(tech)
+
     return {
         "title": job.get("text", "") or "",
         "location": categories.get("location", "") or "",
@@ -124,6 +159,7 @@ def _normalize(job: dict, board_token: str) -> dict:
         "remote": remote,
         "employment_type": categories.get("commitment", ""),
         "experience_level": categories.get("level", ""),
+        "skills_required": skills_required if skills_required else None,
     }
 
 

@@ -2,13 +2,14 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from celery import chain, group
-from sqlalchemy import select, delete, func
+from sqlalchemy import select, delete, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.workers.celery_app import celery_app
-from app.core.database import AsyncSessionLocal
+from app.core.database import async_session_factory
 from app.models.job import Job, Company, JobSource
-from app.integrations import jsearch, greenhouse, lever, remoteok, arbeitnow
+from app.integrations import jsearch, greenhouse, lever, remoteok, arbeitnow, remotive, jobicy
+from app.services.workplace import classify_workplace
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,8 @@ PROVIDERS = {
     "lever": lever.search_jobs,
     "remoteok": remoteok.search_jobs,
     "arbeitnow": arbeitnow.search_jobs,
+    "remotive": remotive.search_jobs,
+    "jobicy": jobicy.search_jobs,
 }
 
 SEARCH_QUERIES = [
@@ -56,7 +59,10 @@ def crawl_job_source(self, source: str):
             return
 
         all_jobs = []
-        for query in SEARCH_QUERIES[:3]:
+        # Arbeitnow exposes the complete feed through pagination, so querying it
+        # once avoids duplicate calls and provider rate limits.
+        provider_queries = [""] if source == "arbeitnow" else SEARCH_QUERIES
+        for query in provider_queries:
             try:
                 jobs = await provider(query, None)
                 all_jobs.extend(jobs)
@@ -75,7 +81,7 @@ def crawl_job_source(self, source: str):
 
         logger.info("crawl[%s] total=%d deduped=%d", source, len(all_jobs), len(deduped))
 
-        async with AsyncSessionLocal() as db:
+        async with async_session_factory() as db:
             stored = 0
             for job_data in deduped:
                 try:
@@ -118,15 +124,17 @@ async def _store_job(db: AsyncSession, ext: dict, provider: str):
     company = None
     if company_name:
         comp_result = await db.execute(
-            select(Company).where(Company.name == company_name)
+            select(Company).where(Company.name == company_name).order_by(Company.created_at).limit(1)
         )
-        company = comp_result.scalar_one_or_none()
+        company = comp_result.scalars().first()
         if not company:
             company = Company(name=company_name, logo_url=ext.get("company_logo"))
             db.add(company)
             await db.flush()
 
-    remote_str = ext.get("remote", "unspecified")
+    remote_str = classify_workplace(
+        ext.get("remote"), ext.get("location"), ext.get("description")
+    )
     remote_enum = getattr(RemoteType, remote_str.upper(), RemoteType.UNSPECIFIED)
     salary_interval = ext.get("salary_interval", "yearly")
     salary_interval_enum = getattr(SalaryInterval, salary_interval.upper(), SalaryInterval.YEARLY)
@@ -159,7 +167,7 @@ def expire_old_jobs():
 
     async def _run():
         cutoff = datetime.now(timezone.utc) - timedelta(days=90)
-        async with AsyncSessionLocal() as db:
+        async with async_session_factory() as db:
             result = await db.execute(
                 select(Job).where(
                     Job.created_at < cutoff,
@@ -171,5 +179,49 @@ def expire_old_jobs():
                 job.is_active = False
             await db.commit()
             logger.info("expired %d old jobs", len(jobs))
+
+    asyncio.run(_run())
+
+
+@celery_app.task(bind=True, max_retries=2, default_retry_delay=300)
+def score_all_user_resumes(self):
+    """Periodically score all active resumes against all active jobs."""
+    import asyncio
+
+    async def _run():
+        from app.models.user import User
+        from app.models.resume import Resume
+        from app.services.matching_service import MatchingService
+
+        async with async_session_factory() as db:
+            users_result = await db.execute(
+                select(User.id, User.active_resume_id)
+            )
+            users = users_result.all()
+            total_scored = 0
+
+            for user_id, active_resume_id in users:
+                resume_id = active_resume_id
+                if not resume_id:
+                    resume_result = await db.execute(
+                        select(Resume.id)
+                        .where(Resume.user_id == user_id, Resume.parsing_status == "COMPLETED")
+                        .order_by(desc(Resume.created_at))
+                        .limit(1)
+                    )
+                    resume_id = resume_result.scalar_one_or_none()
+
+                if not resume_id:
+                    continue
+
+                try:
+                    matching = MatchingService(db)
+                    scored = await matching.score_jobs_for_resume(user_id, resume_id)
+                    total_scored += scored
+                except Exception as e:
+                    logger.error("score_user_failed", user_id=str(user_id), error=str(e))
+
+            await db.commit()
+            logger.info("score_all_complete", total_users=len(users), total_scored=total_scored)
 
     asyncio.run(_run())

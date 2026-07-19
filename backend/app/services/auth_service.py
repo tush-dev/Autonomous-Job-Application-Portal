@@ -131,8 +131,7 @@ class AuthService:
             )
 
             logger.info("google_oauth_token_exchange_response",
-                        status_code=token_response.status_code,
-                        response_body=token_response.text[:500])
+                        status_code=token_response.status_code)
 
             if token_response.status_code != 200:
                 raise UnauthorizedException(

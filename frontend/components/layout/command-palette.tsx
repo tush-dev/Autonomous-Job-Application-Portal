@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   CommandDialog,
@@ -56,6 +56,18 @@ interface CommandPaletteProps {
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const filteredGroups = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return commands;
+    return commands
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) =>
+          `${item.label} ${group.heading}`.toLowerCase().includes(query)
+        ),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [search]);
 
   const handleSelect = useCallback(
     (action: string) => {
@@ -84,21 +96,43 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, onOpenChange]);
 
+  useEffect(() => {
+    if (!open) setSearch("");
+  }, [open]);
+
   if (!open) return null;
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
       <CommandInput
+        autoFocus
         placeholder="Type a command or search..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && filteredGroups[0]?.items[0]) {
+            e.preventDefault();
+            handleSelect(filteredGroups[0].items[0].action);
+          }
+        }}
       />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
-        {commands.map((group) => (
+        {filteredGroups.length === 0 && (
+          <CommandEmpty>No matching command. Try “jobs”, “resume”, or “analytics”.</CommandEmpty>
+        )}
+        {filteredGroups.map((group) => (
           <CommandGroup key={group.heading} heading={group.heading}>
             {group.items.map((item) => (
-              <CommandItem key={item.label} onSelect={() => handleSelect(item.action)}>
+              <CommandItem
+                key={item.label}
+                role="button"
+                tabIndex={0}
+                onClick={() => handleSelect(item.action)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") handleSelect(item.action);
+                }}
+                className="cursor-pointer hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+              >
                 <item.icon className="mr-2 h-4 w-4" />
                 <span>{item.label}</span>
                 <span className="ml-auto text-xs text-muted-foreground">

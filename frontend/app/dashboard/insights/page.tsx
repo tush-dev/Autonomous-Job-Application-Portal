@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Brain, TrendingUp, Target, Star, Lightbulb, AlertCircle,
-  CheckCircle2, FileText, Sparkles, ArrowUpRight,
+  CheckCircle2, FileText, Sparkles, ArrowUpRight, Loader2, Upload,
   BookOpen, BarChart3, Zap, Shield,
 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
@@ -42,14 +43,33 @@ const scoreConfig: Record<string, { label: string; color: string; icon: React.El
 export default function InsightsPage() {
   const [data, setData] = useState<CareerInsightsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasResume, setHasResume] = useState<boolean | null>(null);
+  const [error, setError] = useState("");
+
+  const loadInsights = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const countResponse = await apiClient.get<{ count: number }>("/resumes/count");
+      const resumeExists = countResponse.data.count > 0;
+      setHasResume(resumeExists);
+      if (!resumeExists) {
+        setData(null);
+        return;
+      }
+      const response = await apiClient.get<CareerInsightsData>("/matching/insights");
+      setData(response.data);
+    } catch {
+      setData(null);
+      setError("We couldn't analyze this resume yet. Confirm that parsing completed, then try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    apiClient
-      .get("/matching/insights")
-      .then((res) => setData(res.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+    void loadInsights();
+  }, [loadInsights]);
 
   if (loading) {
     return (
@@ -62,6 +82,34 @@ export default function InsightsPage() {
         </div>
         <Skeleton className="h-96 rounded-2xl" />
       </div>
+    );
+  }
+
+  if (hasResume === false) {
+    return (
+      <Card className="mx-auto mt-12 max-w-2xl">
+        <CardContent className="flex flex-col items-center px-6 py-14 text-center">
+          <div className="rounded-2xl bg-primary/10 p-4"><Upload className="h-8 w-8 text-primary" /></div>
+          <h1 className="mt-5 text-2xl font-bold">Upload a resume to unlock Career Insights</h1>
+          <p className="mt-2 max-w-md text-sm text-muted-foreground">Your active resume will be analyzed for ATS compatibility, strengths, missing skills, and practical improvements.</p>
+          <Button asChild className="mt-6 rounded-xl"><Link href="/dashboard/resumes">Upload resume</Link></Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <Card className="mx-auto mt-12 max-w-2xl">
+        <CardContent className="flex flex-col items-center px-6 py-14 text-center">
+          <AlertCircle className="h-10 w-10 text-amber-500" />
+          <h1 className="mt-4 text-xl font-semibold">Resume analysis isn’t ready</h1>
+          <p className="mt-2 max-w-md text-sm text-muted-foreground">{error}</p>
+          <Button onClick={() => void loadInsights()} className="mt-6 rounded-xl gap-2">
+            <Sparkles className="h-4 w-4" /> Analyze resume
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -265,8 +313,8 @@ export default function InsightsPage() {
               <p className="text-xs text-muted-foreground mt-1">
                 Get personalized career roadmap and skill recommendations
               </p>
-              <Button className="mt-4 w-full rounded-xl gap-2" size="sm">
-                <Zap className="h-4 w-4" /> Analyze with AI
+              <Button onClick={() => void loadInsights()} disabled={loading} className="mt-4 w-full rounded-xl gap-2" size="sm">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />} Refresh analysis
               </Button>
             </CardContent>
           </Card>

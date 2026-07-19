@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
@@ -9,19 +9,15 @@ function GoogleCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState("");
+  const exchangeStarted = useRef(false);
 
   useEffect(() => {
+    if (exchangeStarted.current) return;
+    exchangeStarted.current = true;
+
     const code = searchParams.get("code");
     const currentOrigin = window.location.origin;
     const redirectUri = currentOrigin + "/auth/google/callback";
-
-    console.log("[Google OAuth Callback]", {
-      currentOrigin,
-      redirectUri,
-      hasCode: !!code,
-      codePrefix: code ? code.substring(0, 10) + "..." : null,
-      fullUrl: window.location.href,
-    });
 
     if (!code) {
       setError("No authorization code received from Google");
@@ -39,12 +35,7 @@ function GoogleCallbackContent() {
         localStorage.setItem("user", JSON.stringify(res.data.user));
         router.push("/dashboard");
       })
-      .catch((err) => {
-        console.error("[Google OAuth Callback Error]", {
-          status: err?.response?.status,
-          data: err?.response?.data,
-          message: err?.message,
-        });
+      .catch(() => {
         setError("Google sign-in failed. Please try again.");
       });
   }, [searchParams, router]);

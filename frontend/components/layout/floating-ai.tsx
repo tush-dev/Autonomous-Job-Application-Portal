@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, X, Sparkles, Send, Bot, User } from "lucide-react";
+import { MessageSquare, X, Send, Bot, User, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/api-client";
 
 const quickPrompts = [
   "How can I improve my resume?",
@@ -24,18 +25,33 @@ export function FloatingAI() {
     },
   ]);
   const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  const handleSend = async () => {
-    if (!input.trim()) return;
-    const msg = input.trim();
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, sending]);
+
+  const handleSend = async (content = input) => {
+    const msg = content.trim();
+    if (!msg || sending) return;
     setInput("");
     setMessages((prev) => [...prev, { role: "user", content: msg }]);
-    setTimeout(() => {
+    setSending(true);
+    try {
+      const response = await apiClient.post<{ content: string }>("/ai/chat", { message: msg });
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "I'm analyzing your profile and will provide personalized recommendations shortly." },
+        { role: "assistant", content: response.data.content || "I couldn't generate a response. Please try again." },
       ]);
-    }, 1000);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "I couldn't connect to the career coach. Please try again in a moment." },
+      ]);
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -44,7 +60,7 @@ export function FloatingAI() {
       <motion.button
         onClick={() => setOpen(true)}
         className={cn(
-          "fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-purple-600 text-white shadow-2xl shadow-primary/30 hover:shadow-primary/40 transition-all duration-200",
+          "fixed bottom-24 right-5 z-50 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-emerald-700 text-white shadow-2xl shadow-primary/30 transition-all duration-200 hover:shadow-primary/40 md:bottom-6 md:right-6 md:h-14 md:w-14",
           open && "scale-0 opacity-0 pointer-events-none"
         )}
         whileHover={{ scale: 1.05 }}
@@ -61,12 +77,12 @@ export function FloatingAI() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-            className="fixed bottom-6 right-6 z-50 flex w-[380px] flex-col rounded-2xl border border-border/50 bg-card/95 backdrop-blur-xl shadow-2xl overflow-hidden"
+            className="fixed inset-x-3 bottom-24 z-50 flex max-h-[70vh] flex-col overflow-hidden rounded-2xl border border-border/50 bg-card/95 shadow-2xl backdrop-blur-xl sm:inset-x-auto sm:right-6 sm:w-[380px] md:bottom-6"
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-border/30 px-5 py-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-purple-600">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-emerald-700">
                   <Bot className="h-4 w-4 text-white" />
                 </div>
                 <div>
@@ -80,7 +96,7 @@ export function FloatingAI() {
             </div>
 
             {/* Messages */}
-            <ScrollArea className="flex-1 p-5 h-[400px]">
+            <ScrollArea className="h-[min(400px,45vh)] flex-1 p-5">
               <div className="space-y-4">
                 {messages.map((msg, i) => (
                   <motion.div
@@ -119,6 +135,17 @@ export function FloatingAI() {
                     </div>
                   </motion.div>
                 ))}
+                {sending && (
+                  <div className="flex gap-3" aria-label="Career Copilot is responding">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <Bot className="h-4 w-4" />
+                    </div>
+                    <div className="rounded-2xl bg-muted/50 px-4 py-3">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    </div>
+                  </div>
+                )}
+                <div ref={bottomRef} />
               </div>
             </ScrollArea>
 
@@ -127,9 +154,8 @@ export function FloatingAI() {
               {quickPrompts.map((prompt) => (
                 <button
                   key={prompt}
-                  onClick={() => {
-                    setMessages((prev) => [...prev, { role: "user", content: prompt }]);
-                  }}
+                  onClick={() => void handleSend(prompt)}
+                  disabled={sending}
                   className="rounded-lg bg-muted/50 px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-muted transition-colors"
                 >
                   {prompt}
@@ -145,10 +171,22 @@ export function FloatingAI() {
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Ask anything..."
                   className="flex-1 h-10 rounded-xl bg-muted/30 border-0 ring-1 ring-border/50 focus-visible:ring-primary"
-                  onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                  disabled={sending}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void handleSend();
+                    }
+                  }}
                 />
-                <Button size="icon" className="rounded-xl h-10 w-10 shrink-0" onClick={handleSend}>
-                  <Send className="h-4 w-4" />
+                <Button
+                  size="icon"
+                  className="rounded-xl h-10 w-10 shrink-0"
+                  onClick={() => void handleSend()}
+                  disabled={sending || !input.trim()}
+                  aria-label="Send message"
+                >
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </Button>
               </div>
             </div>

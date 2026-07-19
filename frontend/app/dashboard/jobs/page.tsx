@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn, formatSalary, timeAgo } from "@/lib/utils";
 import type { Job } from "@/types/api";
+import { toast } from "sonner";
 
 const container = {
   hidden: { opacity: 0 },
@@ -44,6 +45,17 @@ export default function JobsPage() {
   const [minMatchScore, setMinMatchScore] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [hasResume, setHasResume] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    apiClient.get("/resumes/count")
+      .then((res) => {
+        const available = (res.data?.count ?? 0) > 0;
+        setHasResume(available);
+        if (!available) setSortBy("recent");
+      })
+      .catch(() => setHasResume(null));
+  }, []);
 
   const searchJobs = useCallback(async (p = 1) => {
     setSearching(true);
@@ -60,8 +72,10 @@ export default function JobsPage() {
       setJobs(res.data.jobs || []);
       setTotalPages(res.data.total_pages || 1);
       setTotalJobs(res.data.total || 0);
-    } catch {
-      // ignore
+      setPage(p);
+    } catch (error: any) {
+      const message = error?.response?.data?.error?.message || error?.response?.data?.detail || "Could not load jobs. Please try again.";
+      toast.error(message);
     } finally {
       setSearching(false);
       setLoading(false);
@@ -81,6 +95,12 @@ export default function JobsPage() {
       }
     } catch {}
   };
+
+  const firstVisiblePage = Math.max(1, Math.min(page - 2, totalPages - 4));
+  const visiblePages = Array.from(
+    { length: Math.min(totalPages, 5) },
+    (_, index) => firstVisiblePage + index
+  );
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 pb-12">
@@ -162,7 +182,14 @@ export default function JobsPage() {
           <Button
             variant={sortBy === "match" ? "default" : "ghost"}
             size="sm"
-            onClick={() => setSortBy("match")}
+            onClick={() => {
+              if (hasResume === false) {
+                toast.error("Upload a parsed resume to see matched jobs.");
+                return;
+              }
+              setSortBy("match");
+            }}
+            disabled={hasResume === false}
             className="rounded-lg text-xs h-8 gap-1.5"
           >
             <Sparkles className="h-3 w-3" /> Match
@@ -371,7 +398,20 @@ export default function JobsPage() {
                               ? timeAgo(job.posted_at)
                               : "Recently posted"}
                           </span>
-                          {match && (
+                          <div className="flex items-center gap-2">
+                            {job.application_url && (
+                              <Button
+                                size="sm"
+                                className="h-8 rounded-lg px-3 text-[11px] font-semibold"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  window.open(job.application_url, "_blank", "noopener,noreferrer");
+                                }}
+                              >
+                                Apply now <ExternalLink className="ml-1.5 h-3 w-3" />
+                              </Button>
+                            )}
+                            {match && (
                             <button
                               className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
                             >
@@ -381,7 +421,8 @@ export default function JobsPage() {
                                 <><ChevronDown className="h-3 w-3" /> AI Analysis</>
                               )}
                             </button>
-                          )}
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -400,21 +441,26 @@ export default function JobsPage() {
             variant="outline"
             size="sm"
             disabled={page <= 1}
-            onClick={() => searchJobs(page - 1)}
+            onClick={() => {
+              searchJobs(page - 1);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
             className="rounded-xl"
           >
             Previous
           </Button>
           <div className="flex items-center gap-1.5">
-            {Array.from({ length: Math.min(totalPages, 5) }).map((_, i) => {
-              const p = i + 1;
+            {visiblePages.map((p) => {
               return (
                 <Button
                   key={p}
                   variant={p === page ? "default" : "ghost"}
                   size="sm"
                   className="rounded-lg h-8 w-8 p-0 text-xs"
-                  onClick={() => searchJobs(p)}
+                  onClick={() => {
+                    searchJobs(p);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
                 >
                   {p}
                 </Button>
@@ -425,7 +471,10 @@ export default function JobsPage() {
             variant="outline"
             size="sm"
             disabled={page >= totalPages}
-            onClick={() => searchJobs(page + 1)}
+            onClick={() => {
+              searchJobs(page + 1);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
             className="rounded-xl"
           >
             Next

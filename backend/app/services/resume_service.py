@@ -107,6 +107,22 @@ class ResumeService:
                 self.db.add(new_graph)
             await self.db.flush()
 
+        if not error:
+            try:
+                from app.services.matching_service import MatchingService
+                matching = MatchingService(self.db)
+                # Keep optional insight generation isolated so a failure cannot
+                # roll back an otherwise successful resume upload.
+                async with self.db.begin_nested():
+                    await matching.generate_career_insights(user.id, resume.id)
+                logger.info("career_insights_generated_after_upload", resume_id=str(resume.id))
+            except Exception as e:
+                logger.warning("resume_post_processing_failed", error=str(e))
+
+            # Job matching is intentionally handled by the periodic worker and
+            # on-demand search. Scoring the entire catalog here makes the upload
+            # request time out as the catalog grows.
+
         await create_notification(
             self.db, user.id, "resume_parsed",
             f"Resume {'parsed' if not error else 'parsing failed'}: {resume.file_name}",
@@ -440,6 +456,22 @@ Resume text:
             await delete_file(settings.S3_BUCKET, resume.file_key)
         except Exception as e:
             logger.warning("minio_delete_failed", file_key=resume.file_key, error=str(e))
+
+        user_result = await self.db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalar_one()
+        if user.active_resume_id == resume.id:
+            fallback_result = await self.db.execute(
+                select(Resume.id)
+                .where(
+                    Resume.user_id == user_id,
+                    Resume.id != resume.id,
+                    Resume.is_active == True,
+                    Resume.parsing_status == ParsingStatus.COMPLETED,
+                )
+                .order_by(desc(Resume.created_at))
+                .limit(1)
+            )
+            user.active_resume_id = fallback_result.scalar_one_or_none()
 
         await self.db.delete(resume)
         await self.db.flush()
