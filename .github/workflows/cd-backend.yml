@@ -1,15 +1,16 @@
-name: Deploy Backend
+name: Validate Render Backend
 
 on:
   push:
     branches: [main]
     paths:
       - 'backend/**'
+      - 'render.yaml'
       - 'docker-compose.prod.yml'
       - '.github/workflows/cd-backend.yml'
 
 jobs:
-  deploy:
+  validate:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -31,9 +32,7 @@ jobs:
           push: true
           tags: ghcr.io/tush-dev/autonomous-job-application-portal/api:latest
 
-      - name: Deploy to Railway
+      - name: Validate Render blueprint
         run: |
-          npm install -g @railway/cli
-          railway up --service api
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          python -m pip install pyyaml
+          python -c "import yaml; yaml.safe_load(open('render.yaml'))"

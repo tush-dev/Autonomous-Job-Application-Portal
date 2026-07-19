@@ -1,0 +1,71 @@
+services:
+  - type: web
+    name: jobagent-api
+    runtime: docker
+    plan: free
+    region: singapore
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerCommand: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 2"
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: APP_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: jobagent-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: jobagent-cache
+          property: connectionString
+      - key: CORS_ORIGINS
+        value: https://jobagent.vercel.app
+      - key: CORS_ORIGIN_REGEX
+        value: https://.*\.vercel\.app
+      - key: TRUSTED_HOSTS
+        value: localhost,jobagent-api.onrender.com,*.onrender.com
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        value: https://jobagent-api.onrender.com/api/v1/auth/google/callback
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: JSEARCH_API_KEY
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: S3_BUCKET
+        value: jobagent-uploads
+      - key: S3_REGION
+        value: auto
+
+  - type: keyvalue
+    name: jobagent-cache
+    plan: free
+    region: singapore
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+
+databases:
+  - name: jobagent-db
+    plan: free
+    region: singapore
+    postgresMajorVersion: "16"
+    databaseName: jobagent
+    user: jobagent
+    ipAllowList: []

@@ -60,6 +60,7 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://frontend:3000",
     ]
+    CORS_ORIGIN_REGEX: Optional[str] = None
 
     TRUSTED_HOSTS: List[str] = [
         "localhost",
@@ -80,6 +81,18 @@ class Settings(BaseSettings):
     def parse_cors_origins(cls, v):
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",")]
+        return v
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def use_async_postgres_driver(cls, v):
+        # Managed providers expose a standard postgres URL; SQLAlchemy's async
+        # engine requires the asyncpg driver prefix.
+        if isinstance(v, str):
+            if v.startswith("postgres://"):
+                return v.replace("postgres://", "postgresql+asyncpg://", 1)
+            if v.startswith("postgresql://"):
+                return v.replace("postgresql://", "postgresql+asyncpg://", 1)
         return v
 
     @field_validator("TRUSTED_HOSTS", mode="before")
