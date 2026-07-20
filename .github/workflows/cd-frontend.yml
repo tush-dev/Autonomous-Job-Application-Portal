@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - 'frontend/**'
-      - 'vercel.json'
       - '.github/workflows/cd-frontend.yml'
 
 jobs:
@@ -25,4 +24,4 @@ jobs:
             --scope ${{ secrets.VERCEL_SCOPE }} \
             --env NEXT_PUBLIC_API_URL=${{ secrets.API_URL }} \
             --env NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
-        working-directory: ./
+        working-directory: ./frontend
