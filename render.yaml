@@ -25,11 +25,11 @@ services:
           name: jobagent-cache
           property: connectionString
       - key: CORS_ORIGINS
-        value: https://jobagent.vercel.app
+        value: '["https://jobagent.vercel.app"]'
       - key: CORS_ORIGIN_REGEX
         value: https://.*\.vercel\.app
       - key: TRUSTED_HOSTS
-        value: localhost,jobagent-api.onrender.com,*.onrender.com
+        value: '["localhost", "jobagent-api.onrender.com", "*.onrender.com"]'
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
