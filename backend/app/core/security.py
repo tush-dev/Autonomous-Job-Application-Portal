@@ -10,6 +10,20 @@ import qrcode.image.svg
 from app.core.config import settings
 
 
+def _jwt_signing_config() -> tuple[str, str]:
+    if settings.JWT_PRIVATE_KEY:
+        return settings.JWT_PRIVATE_KEY, settings.JWT_ALGORITHM
+    return settings.APP_SECRET_KEY, "HS256"
+
+
+def _jwt_verification_config() -> tuple[str, str]:
+    if settings.JWT_PUBLIC_KEY:
+        return settings.JWT_PUBLIC_KEY, settings.JWT_ALGORITHM
+    if settings.JWT_PRIVATE_KEY:
+        return settings.JWT_PRIVATE_KEY, settings.JWT_ALGORITHM
+    return settings.APP_SECRET_KEY, "HS256"
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
@@ -35,7 +49,8 @@ def create_access_token(
         "type": "access",
         "iss": settings.APP_NAME,
     }
-    return jwt.encode(payload, settings.JWT_PRIVATE_KEY, algorithm=settings.JWT_ALGORITHM)
+    signing_key, algorithm = _jwt_signing_config()
+    return jwt.encode(payload, signing_key, algorithm=algorithm)
 
 
 def create_refresh_token(
@@ -53,15 +68,17 @@ def create_refresh_token(
         "type": "refresh",
         "iss": settings.APP_NAME,
     }
-    return jwt.encode(payload, settings.JWT_PRIVATE_KEY, algorithm=settings.JWT_ALGORITHM)
+    signing_key, algorithm = _jwt_signing_config()
+    return jwt.encode(payload, signing_key, algorithm=algorithm)
 
 
 def decode_token(token: str) -> dict:
     try:
+        verification_key, algorithm = _jwt_verification_config()
         payload = jwt.decode(
             token,
-            settings.JWT_PUBLIC_KEY,
-            algorithms=[settings.JWT_ALGORITHM],
+            verification_key,
+            algorithms=[algorithm],
             issuer=settings.APP_NAME,
         )
         return payload
