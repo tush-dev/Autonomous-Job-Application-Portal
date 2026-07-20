@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Boolean, Integer, Float, Text, ForeignKey, Enum as SAEnum
+from sqlalchemy import String, Boolean, Integer, Float, Text, LargeBinary, ForeignKey, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import enum
@@ -29,6 +29,9 @@ class Resume(Base, BaseModelMixin):
     file_key: Mapped[str] = mapped_column(String(512), nullable=False)
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    file_content: Mapped[Optional[bytes]] = mapped_column(
+        LargeBinary, nullable=True, deferred=True
+    )
     file_type: Mapped[FileType] = mapped_column(SAEnum(FileType, name="file_type", create_type=False), nullable=False)
     raw_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     parsed_data: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)

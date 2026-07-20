@@ -35,24 +35,6 @@ async def lifespan(app: FastAPI):
     from sqlalchemy import text
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-    try:
-        import boto3
-        from botocore.config import Config
-        s3 = boto3.client(
-            "s3",
-            endpoint_url=settings.S3_ENDPOINT,
-            aws_access_key_id=settings.S3_ACCESS_KEY,
-            aws_secret_access_key=settings.S3_SECRET_KEY,
-            region_name=settings.S3_REGION,
-            config=Config(signature_version="s3v4"),
-        )
-        buckets = [b["Name"] for b in s3.list_buckets().get("Buckets", [])]
-        if settings.S3_BUCKET not in buckets:
-            s3.create_bucket(Bucket=settings.S3_BUCKET)
-            import logging
-            logging.getLogger(__name__).info("created_minio_bucket", bucket=settings.S3_BUCKET)
-    except Exception:
-        pass
     yield
     await engine.dispose()
 

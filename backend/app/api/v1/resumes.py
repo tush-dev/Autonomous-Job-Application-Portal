@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Response, status
+from urllib.parse import quote
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
 
@@ -84,8 +85,16 @@ async def download_resume(
     db: AsyncSession = Depends(get_db),
 ):
     service = ResumeService(db)
-    url = await service.get_presigned_download_url(current_user.id, resume_id)
-    return {"url": url}
+    content, file_name, content_type = await service.get_resume_file(
+        current_user.id, resume_id
+    )
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(file_name)}"
+        },
+    )
 
 
 @router.delete("/{resume_id}")

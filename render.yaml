@@ -42,16 +42,6 @@ services:
         sync: false
       - key: JSEARCH_API_KEY
         sync: false
-      - key: S3_ENDPOINT
-        sync: false
-      - key: S3_ACCESS_KEY
-        sync: false
-      - key: S3_SECRET_KEY
-        sync: false
-      - key: S3_BUCKET
-        value: jobagent-uploads
-      - key: S3_REGION
-        value: auto
 
   - type: keyvalue
     name: jobagent-cache

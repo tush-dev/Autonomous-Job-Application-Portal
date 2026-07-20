@@ -385,8 +385,17 @@ export default function ResumeDetailPage() {
               <button
                 onClick={async () => {
                   try {
-                    const res = await apiClient.get(`/resumes/${resumeId}/download`);
-                    window.open(res.data.url, "_blank");
+                    const res = await apiClient.get(`/resumes/${resumeId}/download`, {
+                      responseType: "blob",
+                    });
+                    const url = URL.createObjectURL(res.data);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = resume.file_name;
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    URL.revokeObjectURL(url);
                   } catch {
                     toast.error("Download failed");
                   }

@@ -1,4 +1,4 @@
-from typing import Optional, BinaryIO
+from typing import Optional
 import uuid
 import json
 import structlog
@@ -9,11 +9,10 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 
 from app.core.exceptions import NotFoundException, ValidationException
 from app.core.notifier import create_notification
-from app.core.s3 import upload_file, get_presigned_url, delete_file
 from app.models.user import User
 from app.models.job import Job
 from app.models.resume import Resume, ResumeVersion, ResumeSkillGraph, GeneratedResume, ParsingStatus, FileType
@@ -22,7 +21,6 @@ from app.schemas.resume import (
     SkillItem, ResumeTailorResponse, ParsedResumeData,
 )
 from app.core.ai.gateway import get_gateway
-from app.core.config import settings
 
 logger = structlog.get_logger()
 
@@ -54,6 +52,7 @@ class ResumeService:
             file_key=file_key,
             file_name=file.filename,
             file_size=file_size,
+            file_content=content,
             file_type=FileType(file_type),
             parsing_status=ParsingStatus.PROCESSING,
         )
@@ -61,23 +60,7 @@ class ResumeService:
         await self.db.flush()
         await self.db.refresh(resume)
 
-        try:
-            buf = io.BytesIO(content)
-            await upload_file(settings.S3_BUCKET, file_key, buf, file.content_type or "application/octet-stream")
-            logger.info("resume_stored_in_minio", file_key=file_key, file_size=file_size)
-        except Exception as e:
-            logger.error("minio_upload_failed", error=str(e))
-            resume.parsing_status = ParsingStatus.FAILED
-            resume.parsing_error = f"Storage failed: {str(e)}"
-            await self.db.flush()
-            return ResumeUploadResponse(
-                id=str(resume.id),
-                file_name=resume.file_name,
-                file_size=resume.file_size,
-                file_type=resume.file_type.value,
-                parsing_status=resume.parsing_status.value,
-                created_at=resume.created_at,
-            )
+        logger.info("resume_stored_in_postgres", resume_id=str(resume.id), file_size=file_size)
 
         parsed_data, raw_text, confidence, error = await self._parse_resume_content(content, file_type)
         embedding = await self._generate_embedding(raw_text or "")
@@ -452,11 +435,6 @@ Resume text:
         if not resume:
             raise NotFoundException("Resume not found")
 
-        try:
-            await delete_file(settings.S3_BUCKET, resume.file_key)
-        except Exception as e:
-            logger.warning("minio_delete_failed", file_key=resume.file_key, error=str(e))
-
         user_result = await self.db.execute(select(User).where(User.id == user_id))
         user = user_result.scalar_one()
         if user.active_resume_id == resume.id:
@@ -595,9 +573,13 @@ Return ONLY valid JSON with this structure (no markdown):
             created_at=tailored.created_at,
         )
 
-    async def get_presigned_download_url(self, user_id: uuid.UUID, resume_id: str) -> str:
+    async def get_resume_file(
+        self, user_id: uuid.UUID, resume_id: str
+    ) -> tuple[bytes, str, str]:
         result = await self.db.execute(
-            select(Resume).where(
+            select(Resume)
+            .options(undefer(Resume.file_content))
+            .where(
                 Resume.id == resume_id,
                 Resume.user_id == user_id,
             )
@@ -605,11 +587,14 @@ Return ONLY valid JSON with this structure (no markdown):
         resume = result.scalar_one_or_none()
         if not resume:
             raise NotFoundException("Resume not found")
-        try:
-            url = await get_presigned_url(settings.S3_BUCKET, resume.file_key, expires_in=3600)
-            return url
-        except Exception as e:
-            raise NotFoundException(f"Cannot access file: {str(e)}")
+        if not resume.file_content:
+            raise NotFoundException("Original file is unavailable; please upload the resume again")
+        content_type = (
+            "application/pdf"
+            if resume.file_type == FileType.PDF
+            else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+        return resume.file_content, resume.file_name, content_type
 
 
 def _resume_to_response(r) -> ResumeResponse:
