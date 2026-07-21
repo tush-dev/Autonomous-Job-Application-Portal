@@ -27,11 +27,12 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  "fixed z-50 gap-4 bg-card/95 backdrop-blur-xl border border-border/50 p-6 shadow-2xl transition ease-in-out data-[state=open]:animate-slide-in-right data-[state=closed]:animate-slide-in-right",
+  "fixed z-50 gap-4 bg-card/95 backdrop-blur-xl border border-border/50 p-6 shadow-2xl transition ease-in-out",
   {
     variants: {
       side: {
-        right: "inset-y-0 right-0 h-full w-full max-w-lg border-r",
+        right: "inset-y-0 right-0 h-full w-full max-w-lg border-r data-[state=open]:animate-slide-in-right",
+        bottom: "inset-x-0 bottom-0 max-h-[85vh] w-full overflow-y-auto border-t data-[state=open]:animate-slide-up",
       },
     },
     defaultVariants: { side: "right" },

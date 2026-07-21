@@ -121,10 +121,10 @@ export default function ResumesPage() {
   };
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-8 pb-12">
+    <motion.div variants={container} initial="hidden" animate="show" className="space-y-5 pb-6 sm:space-y-8 sm:pb-12">
       {/* Header */}
       <motion.div variants={fadeUp}>
-        <h1 className="text-3xl font-bold tracking-tight">Resumes</h1>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Resumes</h1>
         <p className="mt-1 text-muted-foreground">
           Upload, manage, and analyze your resumes
         </p>
@@ -138,7 +138,7 @@ export default function ResumesPage() {
           onDrop={handleDrop}
           onClick={() => fileRef.current?.click()}
           className={cn(
-            "relative flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-12 transition-all duration-300",
+            "relative flex min-h-72 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-8 text-center transition-all duration-300 sm:min-h-0 sm:p-12",
             dragOver
               ? "border-primary bg-primary/5 scale-[1.02]"
               : "border-border/50 hover:border-primary/50 hover:bg-muted/30"
@@ -163,7 +163,7 @@ export default function ResumesPage() {
               </div>
               <p className="mt-4 font-medium">Uploading...</p>
               <p className="text-sm text-muted-foreground">Parsing your resume with AI</p>
-              <Progress value={45} className="mt-4 w-64 mx-auto h-2" />
+              <Progress value={45} className="mx-auto mt-4 h-2 w-full max-w-64" />
             </div>
           ) : (
             <>
@@ -220,7 +220,7 @@ export default function ResumesPage() {
             <motion.div key={resume.id} variants={fadeUp}>
               <Link href={`/dashboard/resumes/${resume.id}`}>
                 <Card className="group hover:border-primary/30 transition-all duration-300 h-full">
-                  <CardContent className="p-5">
+                  <CardContent className="p-4 sm:p-5">
                     <div className="flex items-start justify-between">
                       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-purple-500/20">
                         <FileText className="h-6 w-6 text-primary" />
@@ -231,7 +231,7 @@ export default function ResumesPage() {
                         )}
                         <button
                           onClick={(e) => { e.preventDefault(); handleDelete(resume.id); }}
-                          className="rounded-lg p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100"
+                          className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>

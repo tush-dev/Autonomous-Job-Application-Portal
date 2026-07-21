@@ -77,11 +77,11 @@ export function TopBar({ onCmdOpen, sidebarCollapsed, isMobile = false, user }: 
       className="fixed top-0 right-0 z-30 h-16 lg:h-20 border-b border-border/60 bg-background/85 backdrop-blur-xl transition-all duration-300"
       style={{ left: isMobile ? 0 : sidebarWidth }}
     >
-      <div className="flex h-full items-center justify-between px-4 lg:px-8">
+      <div className="flex h-full items-center justify-between px-3 sm:px-4 lg:px-8">
         {/* Search / Cmd+K trigger */}
         <button
           onClick={onCmdOpen}
-          className="group flex w-full max-w-md items-center gap-2 rounded-full border border-border/70 bg-card/80 px-3 py-2.5 text-sm text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/25 hover:bg-card sm:px-4"
+          className="group flex min-w-0 flex-1 items-center gap-2 rounded-full border border-border/70 bg-card/80 px-3 py-2.5 text-sm text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/25 hover:bg-card sm:max-w-md sm:px-4"
         >
           <Search className="h-4 w-4 shrink-0" />
           <span className="flex-1 truncate text-left"><span className="sm:hidden">Search...</span><span className="hidden sm:inline">Search or type a command...</span></span>
@@ -177,7 +177,7 @@ export function TopBar({ onCmdOpen, sidebarCollapsed, isMobile = false, user }: 
           {/* User menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="rounded-xl gap-2 pl-2">
+              <Button variant="ghost" size={isMobile ? "icon" : "default"} className="rounded-xl gap-2 sm:pl-2">
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={user?.avatar_url} />
                   <AvatarFallback className="text-xs bg-primary/10 text-primary">

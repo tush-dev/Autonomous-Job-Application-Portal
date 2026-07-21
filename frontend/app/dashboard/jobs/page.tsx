@@ -103,10 +103,10 @@ export default function JobsPage() {
   );
 
   return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 pb-12">
+    <motion.div variants={container} initial="hidden" animate="show" className="space-y-4 pb-6 sm:space-y-6 sm:pb-12">
       {/* Header */}
       <motion.div variants={fadeUp}>
-        <h1 className="text-3xl font-bold tracking-tight">Job Search</h1>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Job Search</h1>
         <p className="mt-1 text-muted-foreground">
           AI-powered job matching based on your resume
         </p>
@@ -115,9 +115,9 @@ export default function JobsPage() {
       {/* Search bar */}
       <motion.div variants={fadeUp}>
         <Card className="border-border/30">
-          <CardContent className="p-4">
-            <div className="flex flex-wrap gap-3">
-              <div className="relative flex-1 min-w-[200px]">
+          <CardContent className="p-3 sm:p-4">
+            <div className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:gap-3">
+              <div className="relative col-span-2 min-w-0 sm:flex-1 sm:min-w-[200px]">
                 <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={query}
@@ -126,7 +126,7 @@ export default function JobsPage() {
                   className="pl-10 h-11 rounded-xl bg-muted/30 border-0 ring-1 ring-border/50 focus-visible:ring-primary"
                 />
               </div>
-              <div className="relative w-36">
+              <div className="relative min-w-0 sm:w-36">
                 <MapPin className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={location}
@@ -138,7 +138,7 @@ export default function JobsPage() {
               <select
                 value={remote}
                 onChange={(e) => setRemote(e.target.value)}
-                className="h-11 rounded-xl bg-muted/30 border-0 ring-1 ring-border/50 focus-visible:ring-primary px-3 text-sm text-muted-foreground focus:outline-none"
+                className="h-11 min-w-0 rounded-xl bg-muted/30 border-0 ring-1 ring-border/50 focus-visible:ring-primary px-3 text-sm text-muted-foreground focus:outline-none"
               >
                 <option value="">Any type</option>
                 <option value="remote">Remote</option>
@@ -148,7 +148,7 @@ export default function JobsPage() {
               <Button
                 onClick={() => searchJobs(1)}
                 disabled={searching}
-                className="h-11 rounded-xl px-6 gap-2"
+                className="col-span-2 h-11 w-full rounded-xl px-6 gap-2 sm:w-auto"
               >
                 {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                 Search
@@ -159,8 +159,8 @@ export default function JobsPage() {
       </motion.div>
 
       {/* Filters bar */}
-      <motion.div variants={fadeUp} className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+      <motion.div variants={fadeUp} className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex items-center justify-between gap-2 sm:justify-start">
           <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
           <select
             value={minMatchScore}
@@ -251,11 +251,11 @@ export default function JobsPage() {
                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
                   )}
 
-                  <CardContent className="p-5">
-                    <div className="flex items-start gap-4">
+                  <CardContent className="p-4 sm:p-5">
+                    <div className="flex items-start gap-3 sm:gap-4">
                       {/* Company logo placeholder */}
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-purple-500/10">
-                        <Building2 className="h-6 w-6 text-primary" />
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-purple-500/10 sm:h-12 sm:w-12">
+                        <Building2 className="h-5 w-5 text-primary sm:h-6 sm:w-6" />
                       </div>
 
                       <div className="flex-1 min-w-0">
